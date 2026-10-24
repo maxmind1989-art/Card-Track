@@ -7,27 +7,27 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="CardTrack">
-<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#101114" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#eaf6f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b1d1b" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <title>CardTrack</title>
 <style>
 :root{
-  --bg:#f4f5f7;--surface:#fff;--surface2:#eef0f3;--text:#14161a;--muted:#6b7280;--line:#e3e6ea;
-  --accent:#0a7d5a;--accent-ink:#fff;--danger:#c0362c;--warn:#b86e00;--ok:#0a7d5a;
+  --bg:#eaf6f3;--bg2:#e6efff;--grad:linear-gradient(135deg,#0fa86f 0%,#1c6fe0 100%);--surface:#fff;--surface2:#eef0f3;--text:#14161a;--muted:#6b7280;--line:#e3e6ea;
+  --accent:#0b8a6a;--accent-ink:#fff;--danger:#c0362c;--warn:#b86e00;--ok:#0a7d5a;
   --shadow:0 1px 2px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme: dark){
-  :root{--bg:#101114;--surface:#1a1c20;--surface2:#24272c;--text:#eef0f3;--muted:#9aa1ab;--line:#2c3036;
+  :root{--bg:#0b1d1b;--bg2:#0b1a30;--grad:linear-gradient(135deg,#12a672 0%,#2b6fe0 100%);--surface:#1a1c20;--surface2:#24272c;--text:#eef0f3;--muted:#9aa1ab;--line:#2c3036;
     --accent:#2fbf8c;--accent-ink:#06261b;--danger:#ff6b5e;--warn:#f0a83a;--ok:#2fbf8c;--shadow:none}
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+html,body{margin:0;background:var(--bg) linear-gradient(160deg,var(--bg) 0%,var(--bg2) 100%) fixed;color:var(--text);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
 body{padding:env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom));min-height:100vh}
 header{padding:14px 16px 6px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-h1{font-size:28px;margin:0;font-weight:700;letter-spacing:-.02em}
+h1{font-size:28px;margin:0;font-weight:800;letter-spacing:-.02em;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
 h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:22px 16px 8px;font-weight:600}
 main{max-width:640px;margin:0 auto}
 .card{background:var(--surface);border-radius:14px;margin:0 16px 10px;padding:14px 16px;box-shadow:var(--shadow)}
@@ -39,31 +39,38 @@ main{max-width:640px;margin:0 auto}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 16px 10px}
 .stats .card{margin:0}
 .bar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden;margin-top:8px}
-.bar>i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.bar>i{display:block;height:100%;background:var(--grad);border-radius:3px}
 .bar.warn>i{background:var(--warn)}.bar.danger>i{background:var(--danger)}
 .list{background:var(--surface);border-radius:14px;margin:0 16px 10px;box-shadow:var(--shadow);overflow:hidden}
 .item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line);cursor:pointer}
 .item:first-child{border-top:0}
 .item .grow{flex:1;min-width:0}
 .item .title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dot{width:36px;height:36px;border-radius:10px;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px}
+.dot{box-shadow:0 2px 6px rgba(0,0,0,.15);width:36px;height:36px;border-radius:10px;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px}
 .pill{font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
+.hero{background:var(--grad);color:#fff;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 6px 20px rgba(28,111,224,.3)}
+.hero .muted{color:rgba(255,255,255,.85)}
+.hero .bar{background:rgba(255,255,255,.28)}
+.hero .bar>i{background:#fff}
+.hero .chev{position:absolute;right:16px;top:14px;font-size:13px;font-weight:600;background:rgba(255,255,255,.22);padding:4px 10px;border-radius:999px}
+.seg2{display:flex;height:10px;border-radius:5px;overflow:hidden;margin:6px 0 12px}
+.seg2 i{display:block;height:100%}
 .pill.ok{color:var(--ok)}.pill.warn{color:var(--warn)}.pill.danger{color:var(--danger)}
 .empty{padding:28px 16px;text-align:center;color:var(--muted)}
 button,.btn{font:inherit;border:0;border-radius:12px;padding:12px 16px;background:var(--surface2);color:var(--text);font-weight:600;cursor:pointer}
-.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary{background:var(--grad);color:#fff}
 .btn-danger{background:transparent;color:var(--danger)}
-.btn-round{width:40px;height:40px;padding:0;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:24px;line-height:40px}
+.btn-round{width:40px;height:40px;padding:0;border-radius:50%;background:var(--grad);color:#fff;box-shadow:0 2px 8px rgba(28,111,224,.35);font-size:24px;line-height:40px}
 .seg{display:flex;align-items:center;gap:8px;margin:4px 16px 4px}
 .seg button{padding:8px 12px}
 .seg .lbl{flex:1;text-align:center;font-weight:600}
-nav{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:3px solid transparent;border-image:var(--grad) 1;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:5}
 nav button{flex:1;background:none;border-radius:0;padding:8px 0 10px;font-size:11px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
 nav button svg{width:24px;height:24px}
-nav button.on{color:var(--accent)}
+nav button.on{color:#1c6fe0}
 .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:10;display:none;align-items:flex-end;justify-content:center}
 .sheet-bg.open{display:flex}
-.sheet{background:var(--bg);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 0 calc(16px + env(safe-area-inset-bottom))}
+.sheet{background:var(--bg) linear-gradient(160deg,var(--bg),var(--bg2));width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 0 calc(16px + env(safe-area-inset-bottom))}
 .sheet h3{margin:0 16px 12px;font-size:20px}
 .field{display:block;margin:0 16px 12px}
 .field span{display:block;font-size:13px;color:var(--muted);margin-bottom:4px;font-weight:600}
@@ -75,7 +82,7 @@ input[type=date]{min-height:44px}
 .actions button{flex:1}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 16px 12px}
 .chips button{padding:7px 12px;font-size:14px;border-radius:999px}
-.chips button.on{background:var(--accent);color:var(--accent-ink)}
+.chips button.on{background:var(--grad);color:#fff}
 .hint{margin:0 16px 12px;font-size:13px;color:var(--muted)}
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;font-weight:600;z-index:20;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
@@ -202,7 +209,8 @@ function vHome(){
   const upcoming = S.cards.map(c=>({c,st:dueStatus(c)})).filter(x=>x.st.due && x.c.balance>0)
     .sort((a,b)=>a.st.due-b.st.due).slice(0,5);
   return `
-  <div class="card">
+  <div class="card hero" id="heroOwed" role="button">
+    <span class="chev">Details ›</span>
     <div class="muted small">Total owed on cards</div>
     <div class="big">${fmt(owed)}</div>
     ${limit?`<div class="bar ${util>70?'danger':util>40?'warn':''}"><i style="width:${Math.min(util,100)}%"></i></div>
@@ -227,6 +235,32 @@ function vHome(){
   <h2>Recent</h2>
   ${txnList(S.txns.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts).slice(0,6))}
   `;
+}
+
+function breakdown(){
+  const cards=S.cards.filter(c=>c.balance>0).sort((a,b)=>b.balance-a.balance);
+  const owed=cards.reduce((a,c)=>a+c.balance,0);
+  const mk=monthKey(new Date()); const tx=monthTxns(mk);
+  const byCat={}; tx.forEach(t=>byCat[t.cat]=(byCat[t.cat]||0)+t.amount);
+  const cats=Object.entries(byCat).sort((a,b)=>b[1]-a[1]); const spent=tx.reduce((a,t)=>a+t.amount,0);
+  const pays=monthTxns(mk,'payment').reduce((a,t)=>a+t.amount,0);
+  const inst=cards.filter(c=>c.payMode==='installment'&&c.installment>0).reduce((a,c)=>a+c.installment,0);
+  openSheet(`<h3>Total owed ${fmt(owed)}</h3>
+    <div class="card"><div class="muted small">By card</div>
+      <div class="seg2" style="margin-top:8px">${cards.map(c=>`<i style="width:${c.balance/owed*100}%;background:${c.color}"></i>`).join('')}</div>
+      ${cards.map(c=>`<div class="kv" data-card="${c.id}" style="cursor:pointer;align-items:center"><span><span class="dot" style="display:inline-grid;width:12px;height:12px;border-radius:50%;background:${c.color};vertical-align:middle;margin-right:8px;box-shadow:none"></span>${esc(c.name)}</span><span class="num"><b>${fmt(c.balance)}</b> <span class="muted small">${(c.balance/owed*100).toFixed(0)}%</span></span></div>`).join('')||'<div class="empty">Nothing owed.</div>'}
+    </div>
+    <div class="card"><div class="muted small">${MONTHS[new Date().getMonth()]} expenses by category</div>
+      ${cats.map(([c,v])=>`<div class="kv"><span>${esc(c)}</span><span class="num"><b>${fmt(v)}</b> <span class="muted small">${(v/spent*100).toFixed(0)}%</span></span></div>`).join('')||'<div class="empty">No expenses yet this month.</div>'}
+      ${spent?`<div class="kv"><span class="muted">Total spent</span><span class="num"><b>${fmt(spent)}</b></span></div>`:''}
+    </div>
+    <div class="card">
+      <div class="kv"><span class="muted">Card payments this month</span><span class="num">${fmt(pays)}</span></div>
+      <div class="kv"><span class="muted">Fixed installments per month</span><span class="num">${fmt(inst)}</span></div>
+    </div>
+    <div class="actions"><button id="bClose" class="btn-primary">Close</button></div>`,
+  r=>{ r.querySelector('#bClose').onclick=closeSheet;
+    r.querySelectorAll('[data-card]').forEach(el=>el.onclick=()=>{ const c=S.cards.find(x=>x.id===el.dataset.card); c&&cardDetail(c); }); });
 }
 
 function txnList(list){
@@ -521,6 +555,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-txn]'); if(t){ const tx=S.txns.find(x=>x.id===t.dataset.txn); if(!tx)return;
     if(tx.type==='payment'){ const card=S.cards.find(x=>x.id===tx.cardId); card&&paymentForm(card,tx); } else expenseForm(tx); return; }
   const b=e.target.closest('[data-budget]'); if(b){ budgetForm(S.budgets.find(x=>x.id===b.dataset.budget)); return; }
+  if(e.target.closest('#heroOwed')){ breakdown(); return; }
   if(e.target.closest('#mIncome')) incomeForm();
   if(e.target.closest('#mIcsAll')) downloadIcs(S.cards,'card-due-dates.ics');
   if(e.target.closest('#mExport')) saveFile(JSON.stringify(S,null,1),`cardtrack-backup-${iso(today())}.json`,'application/json');
