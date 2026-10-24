@@ -726,54 +726,85 @@ function importFromLink(){
 
 // ---------- bill / statement screenshot scanner (on-device OCR) ----------
 const MON3={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+const monIdx=t=>MON3[String(t).toLowerCase().replace(/0/g,'o').replace(/[1|]/g,'l').slice(0,3)];
+const MTOK='[A-Za-z0]{3,9}';
+const toAscii=t=>t.replace(/[٠-٩]/g,c=>c.charCodeAt(0)-0x660).replace(/[۰-۹]/g,c=>c.charCodeAt(0)-0x6F0);
+// a year-less date such as "25 Oct" means the nearest sensible year
+function inferYear(mo,d){ const t=today(); let y=t.getFullYear(); const c=new Date(y,mo,d); if(c<new Date(t.getTime()-150*864e5)) y++; else if(c>new Date(t.getTime()+215*864e5)) y--; return y; }
 const DATE_RES=[
-  [/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g,m=>[+m[1],+m[2]-1,+m[3]]],
-  [/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4}|\d{2})\b/g,m=>{ let d=+m[1],mo=+m[2],y=+m[3]; if(y<100)y+=2000; if(mo>12&&d<=12)[d,mo]=[mo,d]; return [y,mo-1,d]; }],
-  [/\b(\d{1,2})(?:st|nd|rd|th)?[\s\-,.]+([A-Za-z]{3})[A-Za-z]*\.?[\s\-,.]+(\d{4}|\d{2})\b/g,m=>{ let y=+m[3]; if(y<100)y+=2000; return [y,MON3[m[2].toLowerCase()],+m[1]]; }],
-  [/\b([A-Za-z]{3})[A-Za-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/g,m=>[+m[3],MON3[m[1].toLowerCase()],+m[2]]]
+  [new RegExp('\\b(\\d{4})-(\\d{1,2})-(\\d{1,2})\\b','g'),m=>[+m[1],+m[2]-1,+m[3]]],
+  [new RegExp('\\b(\\d{1,2})\\s?[\\/\\-.]\\s?(\\d{1,2})\\s?[\\/\\-.]\\s?(\\d{4}|\\d{2})\\b','g'),m=>{ let d=+m[1],mo=+m[2],y=+m[3]; if(y<100)y+=2000; if(mo>12&&d<=12)[d,mo]=[mo,d]; return [y,mo-1,d]; }],
+  [new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th)?[\\s\\-,.]+('+MTOK+')\\.?[\\s\\-,.]+(\\d{4}|\\d{2})\\b','g'),m=>{ const mo=monIdx(m[2]); if(mo===undefined) return null; let y=+m[3]; if(y<100)y+=2000; return [y,mo,+m[1]]; }],
+  [new RegExp('\\b('+MTOK+')\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\b','g'),m=>{ const mo=monIdx(m[1]); if(mo===undefined) return null; return [+m[3],mo,+m[2]]; }]
+];
+const DATE_RES_NOYEAR=[
+  [new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th)?[\\s\\-]+('+MTOK+')\\b','g'),m=>{ const mo=monIdx(m[2]); return mo===undefined?null:[inferYear(mo,+m[1]),mo,+m[1]]; }],
+  [new RegExp('\\b('+MTOK+')\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b','g'),m=>{ const mo=monIdx(m[1]); return mo===undefined?null:[inferYear(mo,+m[2]),mo,+m[2]]; }]
 ];
 function findDates(line){
-  const out=[];
-  DATE_RES.forEach(([re,f])=>{ re.lastIndex=0; let m; while((m=re.exec(line))){ const [y,mo,d]=f(m); if(mo>=0&&mo<=11&&d>=1&&d<=31&&y>=2000&&y<=2100) out.push(new Date(y,mo,d)); } });
-  return out;
+  const out=[]; let rest=toAscii(line);
+  const run=(list)=>list.forEach(([re,f])=>{ re.lastIndex=0; rest=rest.replace(re,(...a)=>{ const m=a.slice(0,-2); const r=f(m); if(!r) return a[0]; const [y,mo,d]=r;
+    if(mo>=0&&mo<=11&&d>=1&&d<=31&&y>=2000&&y<=2100){ out.push({d:new Date(y,mo,d),i:a[a.length-2]}); return ' '.repeat(a[0].length); } return a[0]; }); });
+  run(DATE_RES); run(DATE_RES_NOYEAR);
+  return out.sort((x,y)=>x.i-y.i).map(x=>x.d);
 }
-const stripDates=l=>DATE_RES.reduce((t,[re])=>t.replace(re,' '),l);
+const stripDates=l=>{ let t=toAscii(l); [...DATE_RES,...DATE_RES_NOYEAR].forEach(([re,f])=>{ re.lastIndex=0; t=t.replace(re,(...a)=>f(a.slice(0,-2))?' ':a[0]); }); return t; };
 const AMT_RE=/\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?/g;
-const AMT_KEYS=[/total\s*amount\s*due/i,/amount\s*due/i,/total\s*due/i,/(total\s*)?(amount\s*)?payable/i,/balance\s*due/i,/total\s*outstanding|outstanding/i,/statement\s*balance|total\s*balance/i,/bill\s*amount|invoice\s*(total|amount)/i,/new\s*charges|total\s*charges|grand\s*total/i,/\btotal\b/i];
-function firstAmount(text){ const m=stripDates(text).match(AMT_RE); if(!m) return null; for(const x of m){ const v=parseFloat(x.replace(/,/g,'')); if(v>0) return v; } return null; }
+// fix common reading slips inside numbers: O for 0, l or I for 1
+const fixDigits=t=>t.replace(/[\dOoIl][\dOoIl,.]*[\dOoIl]|[\dOoIl]/g,x=>/\d/.test(x)?x.replace(/[Oo]/g,'0').replace(/[Il]/g,'1'):x);
+function amountsIn(text){ return (fixDigits(stripDates(text)).match(AMT_RE)||[]).map(x=>parseFloat(x.replace(/,/g,''))).filter(v=>v>0); }
+const AMT_KEYS=[/total\s*amount\s*due/i,/total\s*due/i,/amount\s*due/i,/due\s*amount/i,/amount\s*to\s*pay/i,/(total\s*)?(amount\s*)?payable/i,/balance\s*due/i,/total\s*outstanding|outstanding(\s*balance)?/i,/statement\s*balance|total\s*balance|closing\s*balance/i,/(total\s*)?bill\s*amount|total\s*bill|invoice\s*(total|amount)/i,/new\s*charges|current\s*charges|total\s*charges|grand\s*total/i,/\btotal\b/i];
+const AMT_SKIP=/minimum|\bmin\b|previous|last\s*payment|credit\s*limit|available|reward|points|vat\b|\btax\b|late\s*fee|cash\s*advance/i;
 function parseBill(text){
+  text=toAscii(text);
   const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
   let amount=null;
   for(const key of AMT_KEYS){
     for(let i=0;i<lines.length&&amount==null;i++){
       const m=lines[i].match(key); if(!m) continue;
-      const rest=lines[i].slice(m.index+m[0].length);
-      amount=firstAmount(rest) ?? (lines[i+1]?firstAmount(lines[i+1]):null);
+      if(AMT_SKIP.test(lines[i])&&!/total\s*(amount\s*)?due/i.test(lines[i])) continue;
+      const after=amountsIn(lines[i].slice(m.index+m[0].length));
+      if(after.length) amount=after[0];
+      else if(lines[i+1]&&!AMT_SKIP.test(lines[i+1])){ const nx=amountsIn(lines[i+1]); if(nx.length) amount=nx[0]; }
+      if(amount==null){ const before=amountsIn(lines[i].slice(0,m.index)); if(before.length) amount=before[before.length-1]; }
     }
     if(amount!=null) break;
   }
-  if(amount==null){ let best=0; lines.forEach(l=>{ if(/aed|dhs?|د\.إ/i.test(l)){ (stripDates(l).match(AMT_RE)||[]).forEach(x=>{ const v=parseFloat(x.replace(/,/g,'')); if(v>best) best=v; }); } }); amount=best||null; }
+  if(amount==null){ let best=0; lines.forEach(l=>{ if(/aed|dhs?\b|د\.إ/i.test(l)&&!AMT_SKIP.test(l)) amountsIn(l).forEach(v=>{ if(v>best) best=v; }); }); amount=best||null; }
+  // labels first, values after: "Bill Date  Due Date" then "05 Nov  20 Nov", or one label per line followed by one date per line
+  let due=null,bill=null; const queue=[];
+  const LAB_RE=/bill(?:ing)?\s*date|invoice\s*date|statement\s*(?:date|generated|issued)|issue\s*date|due\s*date|payment\s*due|pay\s*by|due\s*on|\bdue\b/gi;
+  const give=(k,d)=>{ if(k==='due'&&!due) due=d; else if(k==='bill'&&!bill) bill=d; };
+  lines.forEach(l=>{
+    const labs=[...l.matchAll(LAB_RE)].map(m=>/due|pay/i.test(m[0])?'due':'bill'); const ds=findDates(l);
+    if(labs.length&&ds.length){ labs.forEach((k,j)=>{ if(ds[j]) give(k,ds[j]); }); }
+    else if(labs.length){ queue.push(...labs); }
+    else if(ds.length&&queue.length){ ds.forEach(d=>{ const k=queue.shift(); if(k) give(k,d); }); }
+  });
   const dateNear=(re)=>{ for(let i=0;i<lines.length;i++){ if(re.test(lines[i])){ const d=findDates(lines[i]); if(d.length) return d[d.length-1]; const n=lines[i+1]&&findDates(lines[i+1]); if(n&&n.length) return n[0]; } } return null; };
-  let due=dateNear(/due\s*date|payment\s*due|pay\s*(by|before)|due\s*(on|by)|\bdue\b/i);
-  let bill=dateNear(/bill(ing)?\s*date|invoice\s*date|statement\s*date|issue\s*date|date\s*of\s*issue|statement\s*period/i);
+  due=due||dateNear(/due\s*date|payment\s*due|pay\s*(by|before)|due\s*(on|by)|last\s*date|\bdue\b/i);
+  bill=bill||dateNear(/bill(ing)?\s*date|invoice\s*date|statement\s*(date|generated|issued)|issued?\s*(on|date)|date\s*of\s*issue|generated|statement\s*period/i);
   const all=lines.flatMap(findDates).sort((a,b)=>a-b);
   if(!due&&all.length) due=all[all.length-1];
   if(!bill&&all.length>1){ const c=all.find(d=>!due||d<due); if(c) bill=c; }
+  if(due&&bill&&+bill===+due&&all.length>1){ const o=all.find(d=>+d!==+due); if(o) { if(o<due) bill=o; else due=o; } }
   if(due&&bill&&bill>due){ const t=due; due=bill; bill=t; }
   return {amount,due,bill,text};
 }
 // Guess which bill or card the screenshot belongs to
 const BANK_ALIASES=[[/emirates\s*nbd|\benbd\b/i,'enbd'],[/emirates\s*islamic/i,'emirates islamic'],[/first\s*abu\s*dhabi|\bfab\b/i,'fab'],[/dubai\s*islamic|\bdib\b/i,'dib'],[/rak\s*bank|rakbank/i,'rak'],[/adnoc/i,'adnoc'],[/\bdu\b/i,'du']];
 const BILL_HINTS={Electricity:/dewa|electric|sewa|addc|aadc|fewa/i,Water:/\bwater\b/i,Gas:/\bgas\b|sarooj|lpg/i,Phone:/etisalat|\be&|\bdu\b|telecom|mobile|postpaid/i,Internet:/internet|wifi|broadband|wireless/i};
-function guessTarget(text){
+function guessTarget(text,amount){
   const t=text.toLowerCase(); const scores=[];
   const isCardDoc=/credit\s*card|minimum\s*(payment|amount)|card\s*(no|number)|statement\s*of\s*account|total\s*amount\s*due/i.test(text);
   S.cards.forEach(c=>{ let sc=0; const n=c.name.toLowerCase();
     BANK_ALIASES.forEach(([re,key])=>{ if(re.test(text)&&n.includes(key)) sc+=3; });
     n.split(/\s+/).forEach(w=>{ if(w.length>=3&&!['bank','card'].includes(w)&&t.includes(w)) sc+=1; });
+    if(amount&&Math.abs((+c.balance||0)-amount)<0.5) sc+=2; // the statement usually matches what you already owe
     if(isCardDoc&&sc) sc+=2; if(sc) scores.push(['card:'+c.id,sc]); });
   S.budgets.forEach(b=>{ let sc=0; const re=BILL_HINTS[b.cat]; if(re&&re.test(text)) sc+=3; if(/dewa/i.test(text)&&b.cat==='Water') sc-=1;
     b.name.toLowerCase().split(/\s+/).forEach(w=>{ if(w.length>=4&&!['bill'].includes(w)&&t.includes(w)) sc+=1; });
+    if(amount&&b.amount&&Math.abs((+b.amount||0)-amount)<0.5) sc+=2;
     if(!isCardDoc&&sc) sc+=1; if(sc>0) scores.push(['bill:'+b.id,sc]); });
   scores.sort((a,b)=>b[1]-a[1]); return scores.length?scores[0][0]:'';
 }
@@ -782,26 +813,78 @@ function loadTesseract(){
   if(window.Tesseract) return Promise.resolve();
   return tessLoading ||= new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src='ocr/tesseract.min.js'; sc.onload=res; sc.onerror=()=>{ tessLoading=null; rej(new Error('load')); }; document.head.appendChild(sc); });
 }
+// Prepare a screenshot for reading: enlarge, grayscale, stretch contrast, flip light-on-dark to dark-on-light
+async function prepImage(file,variant){
+  const bmp=await createImageBitmap(file);
+  const scale=Math.max(0.5,Math.min(3,2000/bmp.width,Math.sqrt(10e6/(bmp.width*bmp.height)))); const w=Math.round(bmp.width*scale), h=Math.round(bmp.height*scale);
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h; const cx=cv.getContext('2d',{willReadFrequently:true});
+  cx.imageSmoothingQuality='high'; cx.drawImage(bmp,0,0,w,h);
+  if(variant==='plain') return await new Promise(r=>cv.toBlob(r,'image/png'));
+  const img=cx.getImageData(0,0,w,h), px=img.data, n=w*h, g=new Uint8Array(n), hist=new Uint32Array(256);
+  for(let i=0,j=0;i<n;i++,j+=4){ const v=(px[j]*299+px[j+1]*587+px[j+2]*114)/1000|0; g[i]=v; hist[v]++; }
+  let sum=0; for(let v=0;v<256;v++) sum+=v*hist[v]; const mean=sum/n;
+  // find the 2% and 98% brightness points
+  let acc=0,lo=0,hi=255; for(let v=0;v<256;v++){ acc+=hist[v]; if(acc>=n*0.02){ lo=v; break; } } acc=0; for(let v=255;v>=0;v--){ acc+=hist[v]; if(acc>=n*0.02){ hi=v; break; } }
+  const invert=mean<115; const span=Math.max(40,hi-lo);
+  if(variant==='adaptD'||variant==='adaptL'){ // local contrast: strokes darker (D) or lighter (L) than what is right behind them
+    const W=w+1, ii=new Float64Array(W*(h+1));
+    for(let y=1;y<=h;y++){ let row=0; for(let x=1;x<=w;x++){ row+=g[(y-1)*w+(x-1)]; ii[y*W+x]=ii[(y-1)*W+x]+row; } }
+    const r=Math.max(16,Math.round(w/45)), T=Math.max(18,span*0.12), light=variant==='adaptL';
+    for(let y=0;y<h;y++){ const y0=Math.max(0,y-r), y1=Math.min(h,y+r+1);
+      for(let x=0;x<w;x++){ const x0=Math.max(0,x-r), x1=Math.min(w,x+r+1);
+        const m=(ii[y1*W+x1]-ii[y0*W+x1]-ii[y1*W+x0]+ii[y0*W+x0])/((y1-y0)*(x1-x0));
+        const dv=g[y*w+x]-m, v=(light?dv>T:dv<-T)?0:255, j=(y*w+x)*4; px[j]=px[j+1]=px[j+2]=v; px[j+3]=255; } }
+    cx.putImageData(img,0,0); return await new Promise(r=>cv.toBlob(r,'image/png'));
+  }
+  let thr=0;
+  if(variant==='bin'){ // Otsu threshold
+    let wB=0,sB=0,best=0; for(let v=0;v<256;v++){ wB+=hist[v]; if(!wB) continue; const wF=n-wB; if(!wF) break; sB+=v*hist[v]; const mB=sB/wB, mF=(sum-sB)/wF, bt=wB*wF*(mB-mF)*(mB-mF); if(bt>best){ best=bt; thr=v; } }
+  }
+  for(let i=0,j=0;i<n;i++,j+=4){ let v=Math.max(0,Math.min(255,(g[i]-lo)*255/span)); if(invert) v=255-v; if(variant==='bin') v=((invert?255-g[i]:g[i])>(invert?255-thr:thr))?255:0; px[j]=px[j+1]=px[j+2]=v; px[j+3]=255; }
+  cx.putImageData(img,0,0);
+  return await new Promise(r=>cv.toBlob(r,'image/png'));
+}
+const SCAN_PASSES=[['plain','3'],['adaptD','6'],['adaptL','6'],['plain','11']];
+const PASS_LIMIT_MS=25000;
 async function ocrImage(file,onProgress){
   await loadTesseract();
-  const worker=await Tesseract.createWorker('eng',1,{workerPath:'ocr/worker.min.js',corePath:'ocr/',langPath:'ocr/',gzip:true,workerBlobURL:false,
-    logger:m=>{ if(m.status==='recognizing text') onProgress(m.progress); }});
-  try{ const {data}=await worker.recognize(file); return data.text; } finally { worker.terminate(); }
+  let step=0; const total=SCAN_PASSES.length;
+  const merged={amount:null,due:null,bill:null,text:''};
+  for(let i=0;i<SCAN_PASSES.length;i++){
+    step=i; const [variant,psm]=SCAN_PASSES[i];
+    const worker=await Tesseract.createWorker('eng',1,{workerPath:'ocr/worker.min.js',corePath:'ocr/',langPath:'ocr/',gzip:true,workerBlobURL:false,
+      logger:m=>{ if(m.status==='recognizing text') onProgress((step+m.progress)/total); }});
+    try{
+      await worker.setParameters({tessedit_pageseg_mode:psm,preserve_interword_spaces:'1',user_defined_dpi:'300'});
+      const img=await prepImage(file,variant);
+      // a pass that takes too long is dropped so one bad reading cannot hang the scan
+      const data=await Promise.race([worker.recognize(img).then(r=>r.data),new Promise(r=>setTimeout(()=>r(null),PASS_LIMIT_MS))]);
+      if(data){
+        const pr=parseBill(data.text); merged.text+=(merged.text?'\n----\n':'')+data.text;
+        // keep the first reading of each field; later passes only fill what is still missing
+        merged.amount??=pr.amount; merged.due??=pr.due; merged.bill??=pr.bill;
+      }
+    } catch(e){ /* try the next pass */ } finally { worker.terminate(); }
+    if(merged.amount&&merged.due&&merged.bill) break;
+  }
+  onProgress(1); window.__lastText=merged.text; return merged;
 }
 async function scanFile(file){
   const url=URL.createObjectURL(file);
+  let cancelled=false;
   openSheet(`<h3>Reading your screenshot…</h3><img class="thumb" src="${url}" alt=""><div class="prog"><i id="scProg"></i></div><div class="hint">This happens on your phone. The first scan takes a little longer.</div><div class="actions"><button id="scCancel">Cancel</button></div>`,
     r=>{ r.querySelector('#scCancel').onclick=()=>{ cancelled=true; closeSheet(); }; });
-  let cancelled=false, text='';
-  try{ text=await ocrImage(file,p=>{ const el=document.getElementById('scProg'); if(el) el.style.width=Math.round(p*100)+'%'; }); }
+  let pr;
+  try{ pr=await ocrImage(file,p=>{ const el=document.getElementById('scProg'); if(el) el.style.width=Math.round(p*100)+'%'; }); }
   catch(e){ if(cancelled) return; scanReview(url,{amount:null,due:null,bill:null,text:''},'',true); return; }
   if(cancelled) return;
-  const parsed=parseBill(text); scanReview(url,parsed,guessTarget(text),false);
+  scanReview(url,pr,guessTarget(pr.text,pr.amount),false);
 }
 function scanReview(url,pr,target,failed){
   const opt=(v,l)=>`<option value="${v}" ${v===target?'selected':''}>${esc(l)}</option>`;
+  const missing=[!pr.amount&&'amount',!pr.due&&'due date',!pr.bill&&'bill date'].filter(Boolean);
   openSheet(`<h3>Add from screenshot</h3><img class="thumb" src="${url}" alt="">
-    <div class="hint">${failed?'I could not read the screenshot. Fill in the details below.':'Check what I found, fix anything that is wrong, then tap Add.'}</div>
+    <div class="hint">${failed?'I could not read the screenshot. Fill in the details below.':missing.length?`I could not find the ${missing.join(' and ')}. Please fill ${missing.length>1?'them':'it'} in, then tap Add.`:'Check what I found, fix anything that is wrong, then tap Add.'}</div>
     <label class="field"><span>Add to</span><select id="scTarget"><option value="">Choose a bill or card…</option>
       <optgroup label="Bills">${S.budgets.map(b=>opt('bill:'+b.id,b.name)).join('')}</optgroup>
       <optgroup label="Cards">${S.cards.map(c=>opt('card:'+c.id,c.name)).join('')}</optgroup></select></label>
@@ -809,6 +892,7 @@ function scanReview(url,pr,target,failed){
     <div class="grid2"><label class="field"><span>Bill date</span><input type="date" id="scBill" value="${pr.bill?iso(pr.bill):''}"></label>
     <label class="field"><span>Due date</span><input type="date" id="scDue" value="${pr.due?iso(pr.due):''}"></label></div>
     <div class="hint" id="scNote"></div>
+    ${pr.text?`<details class="hint"><summary>Text I read from the screenshot</summary><pre style="white-space:pre-wrap;font-size:12px;max-height:160px;overflow:auto">${esc(pr.text)}</pre></details>`:''}
     <div class="actions"><button id="scCancel">Cancel</button><button class="btn-primary" id="scAdd">Add</button></div>`,
   r=>{
     const note=()=>{ const v=r.querySelector('#scTarget').value; r.querySelector('#scNote').textContent = v.startsWith('card:')?'For a card, this sets what you owe and its due and statement days.':v.startsWith('bill:')?'This updates the bill amount, bill date and due date.':''; };
