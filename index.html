@@ -560,9 +560,14 @@ function restore(d){ S=d; S.cards||=[]; S.budgets||=[]; S.txns||=[]; save(); ren
 function pasteForm(){
   openSheet(`<h3>Paste backup code</h3>
     <label class="field"><textarea id="pText" rows="6" placeholder="Paste the code or link here"></textarea></label>
+    <div class="hint">Tap <b>Paste from clipboard</b>, or press and hold in the box and choose Paste.</div>
+    <div class="actions"><button id="pClip">Paste from clipboard</button></div>
     <div class="actions"><button id="pCancel">Cancel</button><button class="btn-primary" id="pGo">Load data</button></div>`,
   root=>{ root.querySelector('#pCancel').onclick=closeSheet;
-    root.querySelector('#pGo').onclick=()=>{ let d; try{ d=decodeBackup(root.querySelector('#pText').value); }catch(e){ toast('That code is not valid'); return; }
+    root.querySelector('#pClip').onclick=()=>{ (navigator.clipboard?navigator.clipboard.readText():Promise.reject())
+      .then(t=>{ root.querySelector('#pText').value=t; if(!t.trim()) toast('Clipboard is empty'); }).catch(()=>toast('Press and hold in the box, then tap Paste')); };
+    root.querySelector('#pGo').onclick=()=>{ const raw=root.querySelector('#pText').value; if(!raw.trim()){ toast('Paste the code first'); return; }
+      let d; try{ d=decodeBackup(raw); }catch(e){ toast('That code is not valid'); return; }
       if((S.cards.length||S.txns.length) && !confirm('Replace everything on this phone?')) return;
       closeSheet(); restore(d); }; });
 }
@@ -574,10 +579,11 @@ function importFromLink(){
   openSheet(`<h3>Load your data</h3>
     <div class="hint">${d.cards.length} cards, ${d.budgets.length} budget lines, ${d.txns.length} expenses.</div>
     ${standalone?'':`<div class="hint">The Home Screen app keeps its own data. If you already added CardTrack to your Home Screen, tap <b>Copy code</b>, open CardTrack from the Home Screen, go to <b>More → Paste backup code</b>, and paste.</div>`}
+    ${standalone?'':`<label class="field"><span>Your code</span><textarea id="lCode" rows="3" readonly>${esc(code)}</textarea></label>`}
     <div class="actions">${standalone?'':'<button id="lCopy">Copy code</button>'}<button class="btn-primary" id="lLoad">Load here</button></div>
     <div class="actions"><button id="lCancel">Cancel</button></div>`,
   root=>{ root.querySelector('#lCancel').onclick=closeSheet;
-    root.querySelector('#lCopy')?.addEventListener('click',()=>copyText(code));
+    root.querySelector('#lCopy')?.addEventListener('click',()=>{ const t=root.querySelector('#lCode'); t.focus(); t.select(); t.setSelectionRange(0,t.value.length); copyText(code); });
     root.querySelector('#lLoad').onclick=()=>{ if((S.cards.length||S.txns.length) && !confirm('Replace everything on this phone?')) return; closeSheet(); restore(d); }; });
 }
 
