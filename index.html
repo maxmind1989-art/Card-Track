@@ -62,6 +62,8 @@ main{max-width:640px;margin:0 auto}
 .ic svg{width:22px;height:22px;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .plan-h{display:flex;align-items:center;justify-content:space-between;margin:22px 16px 10px}
 .plan-h h2{margin:0}.tot{background:rgba(28,111,224,.12);color:#1c6fe0;border-radius:999px;padding:7px 14px;font-weight:600;font-size:14px}
+.flash{animation:flash 2.4s ease-out}
+@keyframes flash{0%,60%{box-shadow:0 0 0 3px #1c6fe0,0 6px 20px rgba(28,111,224,.45)}100%{box-shadow:var(--shadow)}}
 .bitem{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:18px;margin:0 16px 10px;padding:12px 14px;box-shadow:var(--shadow);cursor:pointer}
 .bitem .grow{flex:1;min-width:0}
 .bitem .pct{font-size:13px;color:var(--muted);width:36px;text-align:right}
@@ -171,7 +173,7 @@ function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){ t
 // ---------- helpers ----------
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-const fmt = n => 'AED ' + (Number(n)||0).toLocaleString('en-AE',{minimumFractionDigits:0,maximumFractionDigits:2});
+const fmt = n => { n=Number(n)||0; return 'AED ' + n.toLocaleString('en-AE',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2}); };
 const today = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
 const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const parseISO = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
@@ -188,6 +190,7 @@ function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('sh
 
 // Next due date on or after today for a card
 function nextDue(card, from=today()){
+  if(card.dueDate){ const d0=parseISO(card.dueDate); let k=0; while(onDay(d0.getFullYear(),d0.getMonth()+k,d0.getDate())<from) k++; return onDay(d0.getFullYear(),d0.getMonth()+k,d0.getDate()); }
   if(!card.dueDay) return null;
   let d = onDay(from.getFullYear(), from.getMonth(), card.dueDay);
   if(d < from) d = onDay(from.getFullYear(), from.getMonth()+1, card.dueDay);
@@ -195,6 +198,7 @@ function nextDue(card, from=today()){
 }
 // The statement date that starts the cycle for a given due date
 function cycleStart(card, due){
+  if(card.statementDate&&card.dueDate){ const s0=parseISO(card.statementDate), d0=parseISO(card.dueDate), k=(due.getFullYear()-d0.getFullYear())*12+(due.getMonth()-d0.getMonth()); return onDay(s0.getFullYear(),s0.getMonth()+k,s0.getDate()); }
   if(card.statementDay){
     let s = onDay(due.getFullYear(), due.getMonth(), card.statementDay);
     if(s >= due) s = onDay(due.getFullYear(), due.getMonth()-1, card.statementDay);
@@ -354,7 +358,7 @@ function vCards(){
     return `<div class="item" data-card="${c.id}" style="flex-wrap:wrap">
       <div class="dot" style="background:${c.color}">${esc(initials(c.name))}</div>
       <div class="grow"><div class="title">${esc(c.name)}</div>
-        <div class="small muted">${c.dueDay?'Due '+dfull(nextDue(c)):'No due day'}${c.statementDay?' · statement '+ord(c.statementDay):''}</div></div>
+        <div class="small muted">${nextDue(c)?'Due '+dfull(nextDue(c)):'No due date'}${(c.statementDate||c.statementDay)&&nextDue(c)?' · statement '+dfull(cycleStart(c,nextDue(c))):''}</div></div>
       <div style="text-align:right"><div class="num" style="font-weight:700">${fmt(c.balance)}</div><span class="pill ${st.cls}">${st.label}</span></div>
       ${u!==null?`<div style="flex-basis:100%;padding-left:48px"><div class="bar ${u>70?'danger':u>40?'warn':''}" style="margin-top:2px"><i style="width:${Math.min(u,100)}%"></i></div></div>`:''}
     </div>`;}).join('')}</div>
@@ -413,8 +417,8 @@ function vBudget(){
     const cy=billCycle(b);
     if(cy){ if(cy.bill) bits.push('Bill date '+dfull(cy.bill)); const n=daysBetween(today(),cy.due); bits.push('Due '+dfull(cy.due)+(n<=7?` (${n===0?'today':n===1?'tomorrow':'in '+n+' days'})`:'')); }
     return `<div class="bitem" data-budget="${b.id}">${catIc(b.cat)}
-      <div class="grow"><div style="display:flex;justify-content:space-between;gap:8px"><div style="min-width:0"><div class="title" style="font-weight:700;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.name)}</div><div class="small muted" style="white-space:normal">${esc(bits.join(' · '))}</div></div>
-        <div class="num" style="text-align:right"><b style="font-size:17px">${fmt(s)}</b><div class="small muted">of <b style="color:var(--text)">${fmt(b.amount)}</b></div></div></div>
+      <div class="grow"><div style="display:flex;justify-content:space-between;gap:8px"><div style="min-width:0"><div class="title" style="font-weight:700;font-size:17px">${esc(b.name)}</div><div class="small muted" style="white-space:normal">${esc(bits.join(' · '))}</div></div>
+        <div class="num" style="text-align:right">${b.dueDate?`<b style="font-size:18px">${fmt(b.amount)}</b><div class="small muted">Spent ${fmt(s)}</div>`:`<b style="font-size:17px">${fmt(s)}</b><div class="small muted">of <b style="color:var(--text)">${fmt(b.amount)}</b></div>`}</div></div>
         <div class="barrow"><div class="bar ${pct>100?'danger':pct>85?'warn':''}"><i style="width:${Math.min(pct,100)}%"></i></div><span class="pct">${Math.round(pct)}%</span></div></div>
       <span class="chev2">›</span></div>`;}).join('') || '<div class="list"><div class="empty">No budget lines yet. Tap + to add one.</div></div>'}
   ${other.length?`<h2>Outside the plan</h2><div class="list">${other.map(([c,v])=>`<div class="item">${catIc(c)}<div class="grow title">${esc(c)}</div><div class="num">${fmt(v)}</div></div>`).join('')}</div>`:''}
@@ -508,7 +512,8 @@ function cardDetail(card){
       <div class="muted small">Owed</div><div class="big">${fmt(card.balance)}</div>
       <div class="kv"><span class="muted">Next due</span><span>${st.due?dfull(st.due):'—'} <span class="pill ${st.cls}">${st.label}</span></span></div>
       ${card.limit?`<div class="kv"><span class="muted">Credit limit</span><span class="num">${fmt(card.limit)}</span></div><div class="kv"><span class="muted">Available</span><span class="num">${fmt(card.limit-card.balance)}</span></div>`:''}
-      <div class="kv"><span class="muted">Statement day</span><span>${card.statementDay?ord(card.statementDay):'—'}</span></div>
+      ${card.stmtAmount?`<div class="kv"><span class="muted">Statement amount</span><span class="num"><b>${fmt(card.stmtAmount)}</b></span></div>`:''}
+      <div class="kv"><span class="muted">Statement date</span><span>${(card.statementDate||card.statementDay)&&st.due?dfull(cycleStart(card,st.due)):'—'}</span></div>
       <div class="kv"><span class="muted">Plan</span><span>${payModeText(card)}</span></div>
       ${card.payMode==='installment'&&card.instPaid?`<div class="kv"><span class="muted">Installments paid</span><span>${card.instPaid}${card.instEnds?' · ends '+esc(card.instEnds):''}</span></div>`:''}
       ${card.notes?`<div class="kv"><span class="muted">Notes</span><span>${esc(card.notes)}</span></div>`:''}
@@ -520,19 +525,20 @@ function cardDetail(card){
   root=>{
     root.querySelector('#cPay').onclick=()=>paymentForm(card);
     root.querySelector('#cEdit').onclick=()=>cardForm(card);
-    root.querySelector('#cIcs').onclick=()=>card.dueDay?downloadIcs([card],`${card.name}-due.ics`):toast('Set a due day first');
+    root.querySelector('#cIcs').onclick=()=>nextDue(card)?downloadIcs([card],`${card.name}-due.ics`):toast('Set a due date first');
     root.querySelector('#cClose').onclick=closeSheet;
   });
 }
 
 function cardForm(card){
-  const isNew=!card; card=card||{name:'',limit:'',balance:'',statementDay:'',dueDay:'',installment:'',payMode:'full',color:COLORS[S.cards.length%COLORS.length],notes:''};
+  const isNew=!card; card=card||{name:'',limit:'',balance:'',statementDate:'',dueDate:'',installment:'',payMode:'full',color:COLORS[S.cards.length%COLORS.length],notes:''};
   openSheet(`<h3>${isNew?'Add card':'Edit card'}</h3>
     <label class="field"><span>Card name</span><input id="kName" value="${esc(card.name)}" placeholder="e.g. ENBD Titanium"></label>
     <div class="grid2"><label class="field"><span>Credit limit</span><input id="kLimit" inputmode="decimal" value="${card.limit||''}" placeholder="0"></label>
     <label class="field"><span>Owed now</span><input id="kBal" inputmode="decimal" value="${card.balance||''}" placeholder="0"></label></div>
-    <div class="grid2"><label class="field"><span>Statement day (1–31)</span><input id="kStmt" inputmode="numeric" value="${card.statementDay||''}" placeholder="e.g. 2"></label>
-    <label class="field"><span>Due day (1–31)</span><input id="kDue" inputmode="numeric" value="${card.dueDay||''}" placeholder="e.g. 27"></label></div>
+    <div class="grid2"><label class="field"><span>Statement date</span><input type="date" id="kStmt" value="${card.statementDate||(card.statementDay?iso(cycleStart(card,nextDue(card)||today())):'')}"></label>
+    <label class="field"><span>Due date</span><input type="date" id="kDue" value="${card.dueDate||(card.dueDay?iso(nextDue(card)):'')}"></label></div>
+    <div class="hint">The due date repeats every month.</div>
     <label class="field"><span>How you pay it</span><select id="kMode">
       <option value="full" ${card.payMode==='full'?'selected':''}>Pay in full</option>
       <option value="min" ${card.payMode==='min'?'selected':''}>Minimum payment</option>
@@ -550,9 +556,10 @@ function cardForm(card){
     root.querySelector('#kSave').onclick=()=>{
       const name=root.querySelector('#kName').value.trim(); if(!name){toast('Enter a name');return;}
       const data={name,limit:num(root.querySelector('#kLimit').value),balance:num(root.querySelector('#kBal').value),
-        statementDay:dayOrNull(root.querySelector('#kStmt').value),dueDay:dayOrNull(root.querySelector('#kDue').value),
+        statementDate:root.querySelector('#kStmt').value||null,dueDate:root.querySelector('#kDue').value||null,
         payMode:root.querySelector('#kMode').value,installment:num(root.querySelector('#kInst').value),instEnds:root.querySelector('#kEnds').value.trim(),
         color,notes:root.querySelector('#kNotes').value.trim()};
+      data.dueDay=data.dueDate?parseISO(data.dueDate).getDate():card.dueDay||null; data.statementDay=data.statementDate?parseISO(data.statementDate).getDate():card.statementDay||null;
       if(isNew) S.cards.push({id:uid(),instPaid:0,...data}); else Object.assign(card,data);
       save(); closeSheet(); render(); toast('Card saved');
     };
@@ -902,16 +909,21 @@ function scanReview(url,pr,target,failed){
       const v=r.querySelector('#scTarget').value; if(!v){ toast('Choose a bill or card'); return; }
       const amount=num(r.querySelector('#scAmt').value); if(amount<=0){ toast('Enter the amount'); return; }
       const bill=r.querySelector('#scBill').value||null, due=r.querySelector('#scDue').value||null;
-      const [kind,id]=v.split(':');
+      const [kind,id]=v.split(':'); let focusId='';
       if(kind==='bill'){ const b=S.budgets.find(x=>x.id===id); if(!b) return;
         b.amount=amount; if(bill) b.billDate=bill; if(due) b.dueDate=due;
         b.dueDay=b.dueDate?parseISO(b.dueDate).getDate():null; b.billDay=b.billDate?parseISO(b.billDate).getDate():null;
-        tab='budget'; toast('Added to '+b.name);
+        tab='budget'; toast('Added to '+b.name); focusId='b:'+b.id;
       } else { const c=S.cards.find(x=>x.id===id); if(!c) return;
-        c.balance=amount; if(due) c.dueDay=parseISO(due).getDate(); if(bill) c.statementDay=parseISO(bill).getDate();
-        tab='cards'; toast('Updated '+c.name);
+        c.balance=amount; c.stmtAmount=amount;
+        if(due){ c.dueDate=due; c.dueDay=parseISO(due).getDate(); }
+        if(bill){ c.statementDate=bill; c.statementDay=parseISO(bill).getDate(); }
+        tab='cards'; toast('Updated '+c.name); focusId='c:'+c.id;
       }
       save(); URL.revokeObjectURL(url); closeSheet(); render(); window.scrollTo(0,0);
+      // jump to what was just updated
+      setTimeout(()=>{ const el=document.querySelector(focusId.startsWith('b:')?`[data-budget="${focusId.slice(2)}"]`:`[data-card="${focusId.slice(2)}"]`);
+        if(el){ el.scrollIntoView({block:'center',behavior:'smooth'}); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),2600); } },150);
     };
   });
 }
