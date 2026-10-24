@@ -139,8 +139,9 @@ input[type=date]{min-height:44px}
 'use strict';
 const KEY = 'cardtrack.v1';
 const COLORS = ['#0a7d5a','#1f5fbf','#a13d8f','#c0572c','#6b4fd8','#00808a','#b8860b','#c0362c','#4a5568'];
-const CATS = ['Food','Groceries','Fuel','Rent','Back home','Bills','Water','Electricity','Gas','Phone','Internet','Transport','Shopping','Health','Dining out','Entertainment','Other'];
+const CATS = ['Food','Groceries','Fuel','Rent','Back home','Bills','Water','Electricity','Gas','Phone','Internet','Home internet','Transport','Shopping','Health','Dining out','Entertainment','Other'];
 
+const totalIncome = () => (+S.income||0) + (+S.reimb||0);
 function seed(){ return {version:1, income:0, cards:[], budgets:[], txns:[]}; }
 
 function uid(){return Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4)}
@@ -165,6 +166,10 @@ function load(){
       }
     });
     S.m3=1;
+  }
+  if(!S.m4){ // separate home internet bill
+    if(S.budgets.length && !S.budgets.some(b=>/home\s*internet/i.test(b.name))) S.budgets.push({id:uid(),name:'Home internet bill',amount:0,cat:'Home internet',day:null,billDate:null,dueDate:null,billDay:null,dueDay:null});
+    S.m4=1;
   }
   save();
 }
@@ -254,7 +259,7 @@ const ICONS={
  film:'<path d="M4 4h16v16H4zM8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4"/>',
  dots:'<path d="M5 12h.01M12 12h.01M19 12h.01"/>'};
 const CAT_ICON={Food:['fork','#0f9d6a'],Groceries:['bag','#0f9d6a'],Fuel:['fuel','#e8662a'],Rent:['home','#7c4dde'],'Back home':['home','#2563eb'],
- Bills:['wallet','#6b7280'],Water:['drop','#1c8fe0'],Electricity:['bolt','#d99a00'],Gas:['flame','#e8662a'],Phone:['phone','#e0457b'],Internet:['wifi','#13a5b8'],
+ Bills:['wallet','#6b7280'],Water:['drop','#1c8fe0'],Electricity:['bolt','#d99a00'],Gas:['flame','#e8662a'],Phone:['phone','#e0457b'],Internet:['wifi','#13a5b8'],'Home internet':['wifi','#0b8fa6'],
  Transport:['car','#4a5568'],Shopping:['bag','#a13d8f'],Health:['heart','#d63a4a'],'Dining out':['fork','#c0572c'],Entertainment:['film','#6b4fd8'],Other:['dots','#6b7280']};
 const ic=(name,color)=>`<span class="ic" style="background:${color}22"><svg viewBox="0 0 24 24" stroke="${color}">${ICONS[name]}</svg></span>`;
 const catIc=c=>{ const [n,col]=CAT_ICON[c]||CAT_ICON.Other; return ic(n,col); };
@@ -278,7 +283,7 @@ function vHome(){
   const budget = S.budgets.reduce((a,b)=>a+(+b.amount||0),0);
   const plannedCard = S.cards.reduce((a,c)=>a+(c.payMode==='installment'?(+c.installment||0):0),0);
   const out = spent + cardPays;
-  const left = (+S.income||0) - out;
+  const left = totalIncome() - out;
   const util = limit ? owed/limit*100 : 0;
   const upcoming = S.cards.map(c=>({c,st:dueStatus(c)})).filter(x=>x.st.due && x.c.balance>0)
     .sort((a,b)=>a.st.due-b.st.due).slice(0,5);
@@ -295,7 +300,7 @@ function vHome(){
       <div class="small muted">Budget ${fmt(budget)}</div>
       <div class="bar ${spent>budget?'danger':''}"><i style="width:${budget?Math.min(spent/budget*100,100):0}%"></i></div></div>
     <div class="card"><div class="muted small">Left this month</div><div class="num" style="font-size:20px;font-weight:700;color:${left<0?'var(--danger)':'inherit'}">${fmt(left)}</div>
-      <div class="small muted">Income ${fmt(S.income)}</div>
+      <div class="small muted">Income ${fmt(totalIncome())}</div>
       <div class="small muted">Card payments ${fmt(cardPays)}</div></div>
   </div>
   <h2>Upcoming card payments</h2>
@@ -399,9 +404,9 @@ function vBudget(){
   const budgetCats = new Set(S.budgets.map(b=>b.cat));
   const other = Object.entries(byCat).filter(([c])=>!budgetCats.has(c));
   const instTotal = S.cards.filter(c=>c.payMode==='installment').reduce((a,c)=>a+(+c.installment||0),0);
-  const savings = (+S.income||0) - total - instTotal;
+  const savings = totalIncome() - total - instTotal;
   const tile=(id,icon,col,label,val,color)=>`<div class="tile" data-tile="${id}">${ic(icon,col)}<div class="grow"><div class="t">${label}</div><div class="v"${color?` style="color:${color}"`:''}>${fmt(val)}</div></div><span class="chev2">›</span></div>`;
-  return `<div class="bband"><div><div class="lbl">Monthly Income</div><div class="amt" data-tile="income">${fmt(S.income)}</div></div>
+  return `<div class="bband"><div><div class="lbl">Monthly Income</div><div class="amt" data-tile="income">${fmt(totalIncome())}</div>${+S.reimb?`<div class="lbl" style="font-size:13px;margin-top:2px">incl. reimbursement ${fmt(S.reimb)}</div>`:''}</div>
     <div class="right"><button class="mpill" id="monBtn">${MONTHS[viewMonth.getMonth()]} ${viewMonth.getFullYear()} ▾</button><button class="bplus" id="bAdd" aria-label="Add budget line">+</button></div></div>
   <div class="tiles">
     ${tile('plan','wallet','#2563eb','Planned Expenses',total)}
@@ -428,7 +433,7 @@ function vBudget(){
 function vMore(){
   return `
   <div class="list">
-    <div class="item" id="mIncome"><div class="grow title">Monthly income</div><div class="num muted">${fmt(S.income)}</div></div>
+    <div class="item" id="mIncome"><div class="grow"><div class="title">Monthly income</div>${+S.reimb?`<div class="small muted">Salary ${fmt(S.income)} + reimbursement ${fmt(S.reimb)}</div>`:''}</div><div class="num muted">${fmt(totalIncome())}</div></div>
     <div class="item" id="mIcsAll"><div class="grow"><div class="title">Add all due dates to Calendar</div><div class="small muted">Monthly reminders 3 days before and on the due day</div></div></div>
   </div>
   <h2>Backup</h2>
@@ -607,10 +612,15 @@ function installmentsSheet(){
 
 function incomeForm(){
   openSheet(`<h3>Monthly income</h3>
-    <label class="field"><span>Take-home pay per month (AED)</span><input id="iAmt" inputmode="decimal" value="${S.income||''}"></label>
+    <label class="field"><span>Take-home pay per month (AED)</span><input id="iAmt" inputmode="decimal" value="${S.income||''}" placeholder="0"></label>
+    <label class="field"><span>Monthly reimbursement (AED)</span><input id="iReimb" inputmode="decimal" value="${S.reimb||''}" placeholder="0"></label>
+    <div class="card" style="margin:0 16px 12px"><div class="kv"><span class="muted">Total monthly income</span><span class="num" style="font-weight:800" id="iTotal"></span></div></div>
     <div class="actions"><button id="iCancel">Cancel</button><button class="btn-primary" id="iSave">Save</button></div>`,
-  root=>{ root.querySelector('#iCancel').onclick=closeSheet;
-    root.querySelector('#iSave').onclick=()=>{ S.income=num(root.querySelector('#iAmt').value); save(); closeSheet(); render(); }; });
+  root=>{
+    const tot=()=>{ root.querySelector('#iTotal').textContent=fmt(num(root.querySelector('#iAmt').value)+num(root.querySelector('#iReimb').value)); };
+    root.querySelector('#iAmt').oninput=tot; root.querySelector('#iReimb').oninput=tot; tot();
+    root.querySelector('#iCancel').onclick=closeSheet;
+    root.querySelector('#iSave').onclick=()=>{ S.income=num(root.querySelector('#iAmt').value); S.reimb=num(root.querySelector('#iReimb').value); save(); closeSheet(); render(); toast('Income saved'); }; });
 }
 
 // ---------- calendar / backup ----------
@@ -800,7 +810,7 @@ function parseBill(text){
 }
 // Guess which bill or card the screenshot belongs to
 const BANK_ALIASES=[[/emirates\s*nbd|\benbd\b/i,'enbd'],[/emirates\s*islamic/i,'emirates islamic'],[/first\s*abu\s*dhabi|\bfab\b/i,'fab'],[/dubai\s*islamic|\bdib\b/i,'dib'],[/rak\s*bank|rakbank/i,'rak'],[/adnoc/i,'adnoc'],[/\bdu\b/i,'du']];
-const BILL_HINTS={Electricity:/dewa|electric|sewa|addc|aadc|fewa/i,Water:/\bwater\b/i,Gas:/\bgas\b|sarooj|lpg/i,Phone:/etisalat|\be&|\bdu\b|telecom|mobile|postpaid/i,Internet:/internet|wifi|broadband|wireless/i};
+const BILL_HINTS={Electricity:/dewa|electric|sewa|addc|aadc|fewa/i,Water:/\bwater\b/i,Gas:/\bgas\b|sarooj|lpg/i,Phone:/etisalat|\be&|\bdu\b|telecom|mobile|postpaid/i,Internet:/mobile\s*data|data\s*plan/i,'Home internet':/home\s*internet|internet|wifi|broadband|wireless|fibre|fiber/i};
 function guessTarget(text,amount){
   const t=text.toLowerCase(); const scores=[];
   const isCardDoc=/credit\s*card|minimum\s*(payment|amount)|card\s*(no|number)|statement\s*of\s*account|total\s*amount\s*due/i.test(text);
