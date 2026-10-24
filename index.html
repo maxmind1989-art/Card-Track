@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CardTrack">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101114" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>CardTrack</title>
+<style>
+:root{
+  --bg:#f4f5f7;--surface:#fff;--surface2:#eef0f3;--text:#14161a;--muted:#6b7280;--line:#e3e6ea;
+  --accent:#0a7d5a;--accent-ink:#fff;--danger:#c0362c;--warn:#b86e00;--ok:#0a7d5a;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#101114;--surface:#1a1c20;--surface2:#24272c;--text:#eef0f3;--muted:#9aa1ab;--line:#2c3036;
+    --accent:#2fbf8c;--accent-ink:#06261b;--danger:#ff6b5e;--warn:#f0a83a;--ok:#2fbf8c;--shadow:none}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+body{padding:env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom));min-height:100vh}
+header{padding:14px 16px 6px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+h1{font-size:28px;margin:0;font-weight:700;letter-spacing:-.02em}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:22px 16px 8px;font-weight:600}
+main{max-width:640px;margin:0 auto}
+.card{background:var(--surface);border-radius:14px;margin:0 16px 10px;padding:14px 16px;box-shadow:var(--shadow)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.big{font-size:30px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 16px 10px}
+.stats .card{margin:0}
+.bar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden;margin-top:8px}
+.bar>i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.bar.warn>i{background:var(--warn)}.bar.danger>i{background:var(--danger)}
+.list{background:var(--surface);border-radius:14px;margin:0 16px 10px;box-shadow:var(--shadow);overflow:hidden}
+.item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line);cursor:pointer}
+.item:first-child{border-top:0}
+.item .grow{flex:1;min-width:0}
+.item .title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:36px;height:36px;border-radius:10px;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px}
+.pill{font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
+.pill.ok{color:var(--ok)}.pill.warn{color:var(--warn)}.pill.danger{color:var(--danger)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+button,.btn{font:inherit;border:0;border-radius:12px;padding:12px 16px;background:var(--surface2);color:var(--text);font-weight:600;cursor:pointer}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-danger{background:transparent;color:var(--danger)}
+.btn-round{width:40px;height:40px;padding:0;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:24px;line-height:40px}
+.seg{display:flex;align-items:center;gap:8px;margin:4px 16px 4px}
+.seg button{padding:8px 12px}
+.seg .lbl{flex:1;text-align:center;font-weight:600}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav button{flex:1;background:none;border-radius:0;padding:8px 0 10px;font-size:11px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button svg{width:24px;height:24px}
+nav button.on{color:var(--accent)}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:10;display:none;align-items:flex-end;justify-content:center}
+.sheet-bg.open{display:flex}
+.sheet{background:var(--bg);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 0 calc(16px + env(safe-area-inset-bottom))}
+.sheet h3{margin:0 16px 12px;font-size:20px}
+.field{display:block;margin:0 16px 12px}
+.field span{display:block;font-size:13px;color:var(--muted);margin-bottom:4px;font-weight:600}
+input,select,textarea{font:inherit;font-size:16px;width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);appearance:none;-webkit-appearance:none}
+input[type=date]{min-height:44px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.grid2 .field:first-child{margin-right:6px}.grid2 .field:last-child{margin-left:6px}
+.actions{display:flex;gap:10px;margin:16px 16px 0}
+.actions button{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 16px 12px}
+.chips button{padding:7px 12px;font-size:14px;border-radius:999px}
+.chips button.on{background:var(--accent);color:var(--accent-ink)}
+.hint{margin:0 16px 12px;font-size:13px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;font-weight:600;z-index:20;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.kv{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line)}
+.kv:first-child{border-top:0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <header><h1 id="title">Overview</h1><button class="btn-round" id="addBtn" aria-label="Add">+</button></header>
+  <section id="view"></section>
+</main>
+
+<nav id="nav">
+  <button data-tab="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Overview</button>
+  <button data-tab="cards"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Cards</button>
+  <button data-tab="spend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Expenses</button>
+  <button data-tab="budget"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 4"/></svg>Budget</button>
+  <button data-tab="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>More</button>
+</nav>
+
+<div class="sheet-bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const KEY = 'cardtrack.v1';
+const COLORS = ['#0a7d5a','#1f5fbf','#a13d8f','#c0572c','#6b4fd8','#00808a','#b8860b','#c0362c','#4a5568'];
+const CATS = ['Food','Groceries','Fuel','Rent','Back home','Bills','Phone','Internet','Transport','Shopping','Health','Dining out','Entertainment','Other'];
+
+function seed(){ return {version:1, income:0, cards:[], budgets:[], txns:[]}; }
+
+function uid(){return Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4)}
+let S;
+function load(){
+  try{ const raw = localStorage.getItem(KEY); S = raw ? JSON.parse(raw) : seed(); }
+  catch(e){ S = seed(); }
+  S.cards ||= []; S.budgets ||= []; S.txns ||= [];
+  save();
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){ toast('Could not save'); } }
+
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const fmt = n => 'AED ' + (Number(n)||0).toLocaleString('en-AE',{minimumFractionDigits:0,maximumFractionDigits:2});
+const today = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
+const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const parseISO = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
+const monthKey = d => iso(d).slice(0,7);
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const dshort = d => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+const dim = (y,m) => new Date(y,m+1,0).getDate();
+const onDay = (y,m,day) => new Date(y,m,Math.min(day,dim(y,m)));
+const initials = n => n.split(/\s+/).map(w=>w[0]).join('').slice(0,3).toUpperCase();
+const daysBetween = (a,b) => Math.round((b-a)/86400000);
+let toastT;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1800); }
+
+// Next due date on or after today for a card
+function nextDue(card, from=today()){
+  if(!card.dueDay) return null;
+  let d = onDay(from.getFullYear(), from.getMonth(), card.dueDay);
+  if(d < from) d = onDay(from.getFullYear(), from.getMonth()+1, card.dueDay);
+  return d;
+}
+// The statement date that starts the cycle for a given due date
+function cycleStart(card, due){
+  if(card.statementDay){
+    let s = onDay(due.getFullYear(), due.getMonth(), card.statementDay);
+    if(s >= due) s = onDay(due.getFullYear(), due.getMonth()-1, card.statementDay);
+    return s;
+  }
+  const s = onDay(due.getFullYear(), due.getMonth()-1, due.getDate());
+  s.setDate(s.getDate()+1);
+  return s;
+}
+function paidThisCycle(card){
+  const due = nextDue(card); if(!due) return 0;
+  const start = cycleStart(card, due);
+  return S.txns.filter(t=>t.type==='payment' && t.cardId===card.id && parseISO(t.date)>=start && parseISO(t.date)<=due)
+               .reduce((a,t)=>a+t.amount,0);
+}
+function dueStatus(card){
+  const due = nextDue(card);
+  if(!due) return {label:'No due date',cls:''};
+  if(card.balance<=0) return {label:'Nothing owed',cls:'ok',due};
+  const paid = paidThisCycle(card);
+  if(paid>0) return {label:'Paid '+fmt(paid),cls:'ok',due,paid};
+  const n = daysBetween(today(), due);
+  const label = n===0 ? 'Due today' : n===1 ? 'Due tomorrow' : `Due in ${n} days`;
+  return {label, cls: n<=3 ? 'danger' : n<=7 ? 'warn' : '', due, days:n};
+}
+function payModeText(c){
+  if(c.payMode==='installment') return `Installment ${fmt(c.installment)}/mo`;
+  if(c.payMode==='min') return 'Paying minimum';
+  return 'Pay in full';
+}
+function monthTxns(mk, type='expense'){ return S.txns.filter(t=>t.type===type && t.date.slice(0,7)===mk); }
+
+// ---------- views ----------
+let tab='home', viewMonth=new Date(); viewMonth.setDate(1);
+
+function render(){
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  const titles={home:'Overview',cards:'Cards',spend:'Expenses',budget:'Budget',more:'More'};
+  $('#title').textContent=titles[tab];
+  $('#addBtn').hidden = tab==='more';
+  $('#view').innerHTML = ({home:vHome,cards:vCards,spend:vSpend,budget:vBudget,more:vMore})[tab]();
+}
+
+function vHome(){
+  const owed = S.cards.reduce((a,c)=>a+(+c.balance||0),0);
+  const limit = S.cards.reduce((a,c)=>a+(+c.limit||0),0);
+  const mk = monthKey(new Date());
+  const spent = monthTxns(mk).reduce((a,t)=>a+t.amount,0);
+  const cardPays = monthTxns(mk,'payment').reduce((a,t)=>a+t.amount,0);
+  const budget = S.budgets.reduce((a,b)=>a+(+b.amount||0),0);
+  const plannedCard = S.cards.reduce((a,c)=>a+(c.payMode==='installment'?(+c.installment||0):0),0);
+  const out = spent + cardPays;
+  const left = (+S.income||0) - out;
+  const util = limit ? owed/limit*100 : 0;
+  const upcoming = S.cards.map(c=>({c,st:dueStatus(c)})).filter(x=>x.st.due && x.c.balance>0)
+    .sort((a,b)=>a.st.due-b.st.due).slice(0,5);
+  return `
+  <div class="card">
+    <div class="muted small">Total owed on cards</div>
+    <div class="big">${fmt(owed)}</div>
+    ${limit?`<div class="bar ${util>70?'danger':util>40?'warn':''}"><i style="width:${Math.min(util,100)}%"></i></div>
+    <div class="row small muted" style="margin-top:6px"><span>${util.toFixed(0)}% of ${fmt(limit)} limits used</span><span>${S.cards.length} cards</span></div>`:''}
+  </div>
+  <div class="stats">
+    <div class="card"><div class="muted small">Spent in ${MONTHS[new Date().getMonth()]}</div><div class="num" style="font-size:20px;font-weight:700">${fmt(spent)}</div>
+      <div class="small muted">Budget ${fmt(budget)}</div>
+      <div class="bar ${spent>budget?'danger':''}"><i style="width:${budget?Math.min(spent/budget*100,100):0}%"></i></div></div>
+    <div class="card"><div class="muted small">Left this month</div><div class="num" style="font-size:20px;font-weight:700;color:${left<0?'var(--danger)':'inherit'}">${fmt(left)}</div>
+      <div class="small muted">Income ${fmt(S.income)}</div>
+      <div class="small muted">Card payments ${fmt(cardPays)}</div></div>
+  </div>
+  <h2>Upcoming card payments</h2>
+  ${upcoming.length?`<div class="list">${upcoming.map(({c,st})=>`
+    <div class="item" data-card="${c.id}">
+      <div class="dot" style="background:${c.color}">${esc(initials(c.name))}</div>
+      <div class="grow"><div class="title">${esc(c.name)}</div><div class="small muted">${dshort(st.due)} · ${payModeText(c)}</div></div>
+      <span class="pill ${st.cls}">${st.label}</span>
+    </div>`).join('')}</div>`:`<div class="list"><div class="empty">No payments coming up.</div></div>`}
+  ${plannedCard?`<div class="hint">Fixed installments: ${fmt(plannedCard)} every month.</div>`:''}
+  <h2>Recent</h2>
+  ${txnList(S.txns.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts).slice(0,6))}
+  `;
+}
+
+function txnList(list){
+  if(!list.length) return `<div class="list"><div class="empty">Nothing yet. Tap + to add an expense.</div></div>`;
+  return `<div class="list">${list.map(t=>{
+    const card = S.cards.find(c=>c.id===t.cardId);
+    const isPay = t.type==='payment';
+    return `<div class="item" data-txn="${t.id}">
+      <div class="dot" style="background:${isPay?'var(--ok)':(card?card.color:'#8a8f98')}">${isPay?'✓':esc(initials(t.cat||'?'))}</div>
+      <div class="grow"><div class="title">${esc(isPay?'Payment to '+(card?card.name:'card'):(t.note||t.cat))}</div>
+        <div class="small muted">${dshort(parseISO(t.date))} · ${isPay?'Card payment':esc(t.cat)+' · '+esc(card?card.name:'Cash / debit')}</div></div>
+      <div class="num" style="font-weight:600">${isPay?'':'−'}${fmt(t.amount)}</div>
+    </div>`;}).join('')}</div>`;
+}
+
+function vCards(){
+  if(!S.cards.length) return `<div class="list"><div class="empty">No cards yet. Tap + to add one.</div></div>`;
+  const sorted = S.cards.slice().sort((a,b)=>(nextDue(a)||9e15)-(nextDue(b)||9e15));
+  return `<div class="list">${sorted.map(c=>{
+    const st=dueStatus(c); const u = c.limit? c.balance/c.limit*100 : null;
+    return `<div class="item" data-card="${c.id}" style="flex-wrap:wrap">
+      <div class="dot" style="background:${c.color}">${esc(initials(c.name))}</div>
+      <div class="grow"><div class="title">${esc(c.name)}</div>
+        <div class="small muted">${c.dueDay?'Due on the '+ord(c.dueDay):'No due day'}${c.statementDay?' · statement '+ord(c.statementDay):''}</div></div>
+      <div style="text-align:right"><div class="num" style="font-weight:700">${fmt(c.balance)}</div><span class="pill ${st.cls}">${st.label}</span></div>
+      ${u!==null?`<div style="flex-basis:100%;padding-left:48px"><div class="bar ${u>70?'danger':u>40?'warn':''}" style="margin-top:2px"><i style="width:${Math.min(u,100)}%"></i></div></div>`:''}
+    </div>`;}).join('')}</div>
+    <div class="hint">Tap a card to record a payment, edit it, or add its due date to your iPhone Calendar.</div>`;
+}
+const ord = n => n + (n%10===1&&n!==11?'st':n%10===2&&n!==12?'nd':n%10===3&&n!==13?'rd':'th');
+
+function monthSeg(){
+  return `<div class="seg"><button data-mon="-1" aria-label="Previous month">‹</button>
+    <div class="lbl">${MONTHS[viewMonth.getMonth()]} ${viewMonth.getFullYear()}</div>
+    <button data-mon="1" aria-label="Next month">›</button></div>`;
+}
+function vSpend(){
+  const mk = monthKey(viewMonth);
+  const list = S.txns.filter(t=>t.date.slice(0,7)===mk).sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts);
+  const spent = list.filter(t=>t.type==='expense').reduce((a,t)=>a+t.amount,0);
+  const paid = list.filter(t=>t.type==='payment').reduce((a,t)=>a+t.amount,0);
+  return `${monthSeg()}
+  <div class="stats" style="margin-top:8px">
+    <div class="card"><div class="muted small">Expenses</div><div class="num" style="font-size:20px;font-weight:700">${fmt(spent)}</div></div>
+    <div class="card"><div class="muted small">Card payments</div><div class="num" style="font-size:20px;font-weight:700">${fmt(paid)}</div></div>
+  </div>
+  ${txnList(list)}`;
+}
+
+function vBudget(){
+  const mk = monthKey(viewMonth);
+  const tx = monthTxns(mk);
+  const byCat = {}; tx.forEach(t=>byCat[t.cat]=(byCat[t.cat]||0)+t.amount);
+  const total = S.budgets.reduce((a,b)=>a+(+b.amount||0),0);
+  const spent = tx.reduce((a,t)=>a+t.amount,0);
+  const budgetCats = new Set(S.budgets.map(b=>b.cat));
+  const other = Object.entries(byCat).filter(([c])=>!budgetCats.has(c));
+  const installments = S.cards.filter(c=>c.payMode==='installment' && c.installment>0);
+  const instTotal = installments.reduce((a,c)=>a+(+c.installment||0),0);
+  const savings = (+S.income||0) - total - instTotal;
+  return `${monthSeg()}
+  <div class="card" style="margin-top:8px">
+    <div class="kv"><span class="muted">Monthly income</span><span class="num">${fmt(S.income)}</span></div>
+    <div class="kv"><span class="muted">Planned expenses</span><span class="num">${fmt(total)}</span></div>
+    <div class="kv"><span class="muted">Card installments</span><span class="num">${fmt(instTotal)}</span></div>
+    <div class="kv"><span style="font-weight:600">Planned savings</span><span class="num" style="font-weight:700;color:${savings<0?'var(--danger)':'var(--ok)'}">${fmt(savings)}</span></div>
+    <div class="kv"><span class="muted">Actually spent so far</span><span class="num">${fmt(spent)}</span></div>
+  </div>
+  <h2>Monthly plan</h2>
+  <div class="list">${S.budgets.map(b=>{
+    const s = byCat[b.cat]||0; const pct = b.amount? s/b.amount*100 : (s?100:0);
+    return `<div class="item" data-budget="${b.id}" style="flex-wrap:wrap">
+      <div class="grow"><div class="title">${esc(b.name)}</div><div class="small muted">${esc(b.cat)}${b.day?' · on the '+ord(b.day):''}</div></div>
+      <div class="num" style="text-align:right"><b>${fmt(s)}</b><div class="small muted">of ${fmt(b.amount)}</div></div>
+      <div style="flex-basis:100%"><div class="bar ${pct>100?'danger':pct>85?'warn':''}"><i style="width:${Math.min(pct,100)}%"></i></div></div>
+    </div>`;}).join('') || '<div class="empty">No budget lines yet.</div>'}</div>
+  ${other.length?`<h2>Outside the plan</h2><div class="list">${other.map(([c,v])=>`<div class="item"><div class="grow title">${esc(c)}</div><div class="num">${fmt(v)}</div></div>`).join('')}</div>`:''}
+  ${installments.length?`<h2>Card installments</h2><div class="list">${installments.map(c=>`<div class="item" data-card="${c.id}"><div class="dot" style="background:${c.color}">${esc(initials(c.name))}</div><div class="grow title">${esc(c.name)}</div><div class="num">${fmt(c.installment)}</div></div>`).join('')}</div>`:''}
+  <div class="hint">Tap a line to change it. Tap + to add a new budget line.</div>`;
+}
+
+function vMore(){
+  return `
+  <div class="list">
+    <div class="item" id="mIncome"><div class="grow title">Monthly income</div><div class="num muted">${fmt(S.income)}</div></div>
+    <div class="item" id="mIcsAll"><div class="grow"><div class="title">Add all due dates to Calendar</div><div class="small muted">Monthly reminders 3 days before and on the due day</div></div></div>
+  </div>
+  <h2>Backup</h2>
+  <div class="list">
+    <div class="item" id="mExport"><div class="grow"><div class="title">Export backup</div><div class="small muted">Saves a file you can keep in iCloud Drive or Files</div></div></div>
+    <div class="item" id="mCsv"><div class="grow"><div class="title">Export expenses as CSV</div><div class="small muted">Opens in Excel or Numbers</div></div></div>
+    <label class="item" style="margin:0"><div class="grow"><div class="title">Restore from backup</div><div class="small muted">Replaces everything on this phone</div></div><input type="file" id="mImport" accept="application/json,.json" hidden></label>
+  </div>
+  <div class="hint">Your data stays only on this iPhone. Nothing is sent anywhere. Export a backup now and then so you don't lose it if Safari data is cleared.</div>
+  <div class="list"><div class="item" id="mReset"><div class="grow title" style="color:var(--danger)">Erase all data</div></div></div>
+  <div class="hint">CardTrack · amounts in AED</div>`;
+}
+
+// ---------- sheets / forms ----------
+function openSheet(html, onMount){ $('#sheet').innerHTML=html; $('#sheetBg').classList.add('open'); onMount && onMount($('#sheet')); }
+function closeSheet(){ $('#sheetBg').classList.remove('open'); $('#sheet').innerHTML=''; }
+$('#sheetBg').addEventListener('click',e=>{ if(e.target.id==='sheetBg') closeSheet(); });
+const num = v => { const n = parseFloat(String(v).replace(/,/g,'')); return isFinite(n)? Math.round(n*100)/100 : 0; };
+const dayOrNull = v => { const n=parseInt(v,10); return n>=1&&n<=31?n:null; };
+
+function expenseForm(t){
+  const isNew=!t; t = t || {date:iso(today()),cat:'Food',cardId:'',amount:'',note:''};
+  openSheet(`<h3>${isNew?'Add expense':'Edit expense'}</h3>
+    <label class="field"><span>Amount (AED)</span><input id="fAmt" inputmode="decimal" value="${t.amount||''}" placeholder="0" autocomplete="off"></label>
+    <div class="chips" id="fCats">${CATS.map(c=>`<button type="button" class="${c===t.cat?'on':''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+    <label class="field"><span>Paid with</span><select id="fCard"><option value="">Cash / debit card</option>${S.cards.map(c=>`<option value="${c.id}" ${c.id===t.cardId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
+    <div class="grid2"><label class="field"><span>Date</span><input type="date" id="fDate" value="${t.date}"></label>
+    <label class="field"><span>Note</span><input id="fNote" value="${esc(t.note)}" placeholder="Optional"></label></div>
+    <div class="hint">Expenses on a credit card are added to that card's balance.</div>
+    <div class="actions">${isNew?'':'<button class="btn-danger" id="fDel">Delete</button>'}<button id="fCancel">Cancel</button><button class="btn-primary" id="fSave">Save</button></div>`,
+  root=>{
+    let cat=t.cat;
+    root.querySelector('#fCats').onclick=e=>{const b=e.target.closest('button'); if(!b)return; cat=b.dataset.c; root.querySelectorAll('#fCats button').forEach(x=>x.classList.toggle('on',x===b));};
+    root.querySelector('#fCancel').onclick=closeSheet;
+    if(!isNew) root.querySelector('#fDel').onclick=()=>{ if(confirm('Delete this expense?')){ applyTxn(t,-1); S.txns=S.txns.filter(x=>x.id!==t.id); save(); closeSheet(); render(); toast('Deleted'); } };
+    root.querySelector('#fSave').onclick=()=>{
+      const amount=num(root.querySelector('#fAmt').value); if(amount<=0){toast('Enter an amount');return;}
+      const nt={...t,id:t.id||uid(),ts:t.ts||Date.now(),type:'expense',amount,cat,cardId:root.querySelector('#fCard').value||null,date:root.querySelector('#fDate').value||iso(today()),note:root.querySelector('#fNote').value.trim()};
+      if(!isNew){ applyTxn(t,-1); S.txns=S.txns.filter(x=>x.id!==t.id); }
+      applyTxn(nt,1); S.txns.push(nt); save(); closeSheet(); render(); toast('Saved');
+    };
+    if(isNew) setTimeout(()=>root.querySelector('#fAmt').focus(),250);
+  });
+}
+// Keep card balances in step with expenses (+) and payments (−)
+function applyTxn(t, sign){
+  const c=S.cards.find(c=>c.id===t.cardId); if(!c) return;
+  const delta = t.type==='payment' ? -t.amount : t.amount;
+  c.balance = Math.round(((+c.balance||0) + sign*delta)*100)/100;
+}
+
+function paymentForm(card, t){
+  const isNew=!t; t=t||{date:iso(today()),amount:card.payMode==='installment'&&card.installment?card.installment:'',note:''};
+  openSheet(`<h3>${isNew?'Pay '+esc(card.name):'Edit payment'}</h3>
+    <div class="hint">Owed now: ${fmt(card.balance)}</div>
+    <label class="field"><span>Amount paid (AED)</span><input id="pAmt" inputmode="decimal" value="${t.amount}" placeholder="0"></label>
+    <div class="chips">${card.installment?`<button type="button" data-v="${card.installment}">Installment ${fmt(card.installment)}</button>`:''}<button type="button" data-v="${card.balance}">Full ${fmt(card.balance)}</button></div>
+    <label class="field"><span>Date</span><input type="date" id="pDate" value="${t.date}"></label>
+    <div class="actions">${isNew?'':'<button class="btn-danger" id="pDel">Delete</button>'}<button id="pCancel">Cancel</button><button class="btn-primary" id="pSave">Save payment</button></div>`,
+  root=>{
+    root.querySelectorAll('.chips button').forEach(b=>b.onclick=()=>root.querySelector('#pAmt').value=b.dataset.v);
+    root.querySelector('#pCancel').onclick=closeSheet;
+    if(!isNew) root.querySelector('#pDel').onclick=()=>{ if(confirm('Delete this payment?')){ applyTxn(t,-1); S.txns=S.txns.filter(x=>x.id!==t.id); save(); closeSheet(); render(); } };
+    root.querySelector('#pSave').onclick=()=>{
+      const amount=num(root.querySelector('#pAmt').value); if(amount<=0){toast('Enter an amount');return;}
+      const nt={...t,id:t.id||uid(),ts:t.ts||Date.now(),type:'payment',cardId:card.id,cat:'Card payment',amount,date:root.querySelector('#pDate').value||iso(today())};
+      if(!isNew){ applyTxn(t,-1); S.txns=S.txns.filter(x=>x.id!==t.id); }
+      if(nt.amount && card.payMode==='installment' && isNew) card.instPaid=(card.instPaid||0)+1;
+      applyTxn(nt,1); S.txns.push(nt); save(); closeSheet(); render(); toast('Payment saved');
+    };
+  });
+}
+
+function cardDetail(card){
+  const st=dueStatus(card);
+  const pays=S.txns.filter(t=>t.cardId===card.id).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
+  openSheet(`<h3>${esc(card.name)}</h3>
+    <div class="card">
+      <div class="muted small">Owed</div><div class="big">${fmt(card.balance)}</div>
+      <div class="kv"><span class="muted">Next due</span><span>${st.due?dshort(st.due):'—'} <span class="pill ${st.cls}">${st.label}</span></span></div>
+      ${card.limit?`<div class="kv"><span class="muted">Credit limit</span><span class="num">${fmt(card.limit)}</span></div><div class="kv"><span class="muted">Available</span><span class="num">${fmt(card.limit-card.balance)}</span></div>`:''}
+      <div class="kv"><span class="muted">Statement day</span><span>${card.statementDay?ord(card.statementDay):'—'}</span></div>
+      <div class="kv"><span class="muted">Plan</span><span>${payModeText(card)}</span></div>
+      ${card.payMode==='installment'&&card.instPaid?`<div class="kv"><span class="muted">Installments paid</span><span>${card.instPaid}${card.instEnds?' · ends '+esc(card.instEnds):''}</span></div>`:''}
+      ${card.notes?`<div class="kv"><span class="muted">Notes</span><span>${esc(card.notes)}</span></div>`:''}
+    </div>
+    <div class="actions" style="margin-top:4px"><button class="btn-primary" id="cPay">Record payment</button></div>
+    <div class="actions"><button id="cEdit">Edit card</button><button id="cIcs">Add to Calendar</button></div>
+    <h2>Activity</h2>${pays.length?txnList(pays):'<div class="list"><div class="empty">No activity yet.</div></div>'}
+    <div class="actions"><button id="cClose">Close</button></div>`,
+  root=>{
+    root.querySelector('#cPay').onclick=()=>paymentForm(card);
+    root.querySelector('#cEdit').onclick=()=>cardForm(card);
+    root.querySelector('#cIcs').onclick=()=>card.dueDay?downloadIcs([card],`${card.name}-due.ics`):toast('Set a due day first');
+    root.querySelector('#cClose').onclick=closeSheet;
+  });
+}
+
+function cardForm(card){
+  const isNew=!card; card=card||{name:'',limit:'',balance:'',statementDay:'',dueDay:'',installment:'',payMode:'full',color:COLORS[S.cards.length%COLORS.length],notes:''};
+  openSheet(`<h3>${isNew?'Add card':'Edit card'}</h3>
+    <label class="field"><span>Card name</span><input id="kName" value="${esc(card.name)}" placeholder="e.g. ENBD Titanium"></label>
+    <div class="grid2"><label class="field"><span>Credit limit</span><input id="kLimit" inputmode="decimal" value="${card.limit||''}" placeholder="0"></label>
+    <label class="field"><span>Owed now</span><input id="kBal" inputmode="decimal" value="${card.balance||''}" placeholder="0"></label></div>
+    <div class="grid2"><label class="field"><span>Statement day (1–31)</span><input id="kStmt" inputmode="numeric" value="${card.statementDay||''}" placeholder="e.g. 2"></label>
+    <label class="field"><span>Due day (1–31)</span><input id="kDue" inputmode="numeric" value="${card.dueDay||''}" placeholder="e.g. 27"></label></div>
+    <label class="field"><span>How you pay it</span><select id="kMode">
+      <option value="full" ${card.payMode==='full'?'selected':''}>Pay in full</option>
+      <option value="min" ${card.payMode==='min'?'selected':''}>Minimum payment</option>
+      <option value="installment" ${card.payMode==='installment'?'selected':''}>Fixed monthly installment</option></select></label>
+    <div class="grid2"><label class="field"><span>Monthly installment</span><input id="kInst" inputmode="decimal" value="${card.installment||''}" placeholder="0"></label>
+    <label class="field"><span>Installments end</span><input id="kEnds" value="${esc(card.instEnds||'')}" placeholder="e.g. Feb 2027"></label></div>
+    <div class="chips" id="kColor">${COLORS.map(c=>`<button type="button" data-c="${c}" style="background:${c};width:32px;height:32px;padding:0;${c===card.color?'outline:3px solid var(--text);outline-offset:2px':''}" aria-label="Colour"></button>`).join('')}</div>
+    <label class="field"><span>Notes</span><input id="kNotes" value="${esc(card.notes)}" placeholder="Optional"></label>
+    <div class="actions">${isNew?'':'<button class="btn-danger" id="kDel">Delete</button>'}<button id="kCancel">Cancel</button><button class="btn-primary" id="kSave">Save</button></div>`,
+  root=>{
+    let color=card.color;
+    root.querySelector('#kColor').onclick=e=>{const b=e.target.closest('button'); if(!b)return; color=b.dataset.c; root.querySelectorAll('#kColor button').forEach(x=>x.style.outline=x===b?'3px solid var(--text)':'none');};
+    root.querySelector('#kCancel').onclick=closeSheet;
+    if(!isNew) root.querySelector('#kDel').onclick=()=>{ if(confirm(`Delete ${card.name}? Its expenses stay, marked as cash.`)){ S.cards=S.cards.filter(c=>c.id!==card.id); S.txns=S.txns.filter(t=>!(t.type==='payment'&&t.cardId===card.id)).map(t=>t.cardId===card.id?{...t,cardId:null}:t); save(); closeSheet(); render(); } };
+    root.querySelector('#kSave').onclick=()=>{
+      const name=root.querySelector('#kName').value.trim(); if(!name){toast('Enter a name');return;}
+      const data={name,limit:num(root.querySelector('#kLimit').value),balance:num(root.querySelector('#kBal').value),
+        statementDay:dayOrNull(root.querySelector('#kStmt').value),dueDay:dayOrNull(root.querySelector('#kDue').value),
+        payMode:root.querySelector('#kMode').value,installment:num(root.querySelector('#kInst').value),instEnds:root.querySelector('#kEnds').value.trim(),
+        color,notes:root.querySelector('#kNotes').value.trim()};
+      if(isNew) S.cards.push({id:uid(),instPaid:0,...data}); else Object.assign(card,data);
+      save(); closeSheet(); render(); toast('Card saved');
+    };
+  });
+}
+
+function budgetForm(b){
+  const isNew=!b; b=b||{name:'',amount:'',cat:'Other',day:''};
+  openSheet(`<h3>${isNew?'Add budget line':'Edit budget line'}</h3>
+    <label class="field"><span>Name</span><input id="bName" value="${esc(b.name)}" placeholder="e.g. Room rent"></label>
+    <div class="grid2"><label class="field"><span>Amount per month</span><input id="bAmt" inputmode="decimal" value="${b.amount||''}" placeholder="0"></label>
+    <label class="field"><span>Day of month</span><input id="bDay" inputmode="numeric" value="${b.day||''}" placeholder="Any"></label></div>
+    <label class="field"><span>Counts expenses in category</span><select id="bCat">${CATS.map(c=>`<option ${c===b.cat?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
+    <div class="actions">${isNew?'':'<button class="btn-danger" id="bDel">Delete</button>'}<button id="bCancel">Cancel</button><button class="btn-primary" id="bSave">Save</button></div>`,
+  root=>{
+    root.querySelector('#bCancel').onclick=closeSheet;
+    if(!isNew) root.querySelector('#bDel').onclick=()=>{ S.budgets=S.budgets.filter(x=>x.id!==b.id); save(); closeSheet(); render(); };
+    root.querySelector('#bSave').onclick=()=>{
+      const name=root.querySelector('#bName').value.trim(); if(!name){toast('Enter a name');return;}
+      const data={name,amount:num(root.querySelector('#bAmt').value),day:dayOrNull(root.querySelector('#bDay').value),cat:root.querySelector('#bCat').value};
+      if(isNew) S.budgets.push({id:uid(),...data}); else Object.assign(b,data);
+      save(); closeSheet(); render(); toast('Saved');
+    };
+  });
+}
+
+function incomeForm(){
+  openSheet(`<h3>Monthly income</h3>
+    <label class="field"><span>Take-home pay per month (AED)</span><input id="iAmt" inputmode="decimal" value="${S.income||''}"></label>
+    <div class="actions"><button id="iCancel">Cancel</button><button class="btn-primary" id="iSave">Save</button></div>`,
+  root=>{ root.querySelector('#iCancel').onclick=closeSheet;
+    root.querySelector('#iSave').onclick=()=>{ S.income=num(root.querySelector('#iAmt').value); save(); closeSheet(); render(); }; });
+}
+
+// ---------- calendar / backup ----------
+function downloadIcs(cards, filename){
+  const stamp = new Date().toISOString().replace(/[-:]/g,'').slice(0,15)+'Z';
+  const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//CardTrack//EN','CALSCALE:GREGORIAN','METHOD:PUBLISH'];
+  cards.filter(c=>c.dueDay).forEach(c=>{
+    const d = nextDue(c); const ds = iso(d).replace(/-/g,''); const de = iso(new Date(d.getFullYear(),d.getMonth(),d.getDate()+1)).replace(/-/g,'');
+    lines.push('BEGIN:VEVENT',`UID:cardtrack-${c.id}@local`,`DTSTAMP:${stamp}`,`DTSTART;VALUE=DATE:${ds}`,`DTEND;VALUE=DATE:${de}`,
+      // Days above 28 fall back to the last day of short months
+      c.dueDay>28 ? `RRULE:FREQ=MONTHLY;BYMONTHDAY=${c.dueDay},-1;BYSETPOS=1` : `RRULE:FREQ=MONTHLY;BYMONTHDAY=${c.dueDay}`,
+      `SUMMARY:${icsEsc(c.name)} card payment due`,`DESCRIPTION:${icsEsc(payModeText(c))}`,
+      'BEGIN:VALARM','ACTION:DISPLAY',`DESCRIPTION:${icsEsc(c.name)} due in 3 days`,'TRIGGER:-P2DT15H','END:VALARM',
+      'BEGIN:VALARM','ACTION:DISPLAY',`DESCRIPTION:${icsEsc(c.name)} due today`,'TRIGGER:PT9H','END:VALARM',
+      'END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  saveFile(lines.join('\r\n'), filename, 'text/calendar');
+}
+const icsEsc = s => String(s).replace(/[\\;,]/g,m=>'\\'+m);
+function saveFile(text, filename, type){
+  const blob=new Blob([text],{type});
+  const file = new File([blob], filename, {type});
+  if(navigator.canShare && navigator.canShare({files:[file]}) && type!=='text/calendar'){
+    navigator.share({files:[file],title:filename}).catch(()=>{});
+    return;
+  }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1000);
+}
+function exportCsv(){
+  const rows=[['Date','Type','Category','Card','Amount (AED)','Note']];
+  S.txns.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>{
+    const c=S.cards.find(c=>c.id===t.cardId);
+    rows.push([t.date,t.type,t.cat||'',c?c.name:'Cash / debit',t.amount,t.note||'']);
+  });
+  saveFile(rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'),`cardtrack-${iso(today())}.csv`,'text/csv');
+}
+
+// ---------- events ----------
+$('#nav').onclick=e=>{const b=e.target.closest('button'); if(!b)return; tab=b.dataset.tab; viewMonth=new Date(); viewMonth.setDate(1); render(); window.scrollTo(0,0);};
+$('#addBtn').onclick=()=>({home:expenseForm,spend:expenseForm,cards:()=>cardForm(),budget:()=>budgetForm()})[tab]?.();
+document.addEventListener('click',e=>{
+  const m=e.target.closest('[data-mon]'); if(m){ viewMonth=new Date(viewMonth.getFullYear(),viewMonth.getMonth()+Number(m.dataset.mon),1); render(); return; }
+  const inSheet = e.target.closest('#sheet');
+  const c=e.target.closest('[data-card]'); if(c && !inSheet){ const card=S.cards.find(x=>x.id===c.dataset.card); card&&cardDetail(card); return; }
+  const t=e.target.closest('[data-txn]'); if(t){ const tx=S.txns.find(x=>x.id===t.dataset.txn); if(!tx)return;
+    if(tx.type==='payment'){ const card=S.cards.find(x=>x.id===tx.cardId); card&&paymentForm(card,tx); } else expenseForm(tx); return; }
+  const b=e.target.closest('[data-budget]'); if(b){ budgetForm(S.budgets.find(x=>x.id===b.dataset.budget)); return; }
+  if(e.target.closest('#mIncome')) incomeForm();
+  if(e.target.closest('#mIcsAll')) downloadIcs(S.cards,'card-due-dates.ics');
+  if(e.target.closest('#mExport')) saveFile(JSON.stringify(S,null,1),`cardtrack-backup-${iso(today())}.json`,'application/json');
+  if(e.target.closest('#mCsv')) exportCsv();
+  if(e.target.closest('#mReset') && confirm('Erase all cards, expenses and budgets on this phone?') && confirm('Are you sure? This cannot be undone.')){
+    S={version:1,income:0,cards:[],budgets:[],txns:[]}; save(); render(); toast('Erased'); }
+});
+document.addEventListener('change',e=>{
+  if(e.target.id!=='mImport') return;
+  const f=e.target.files[0]; if(!f) return;
+  f.text().then(txt=>{ const d=JSON.parse(txt); if(!Array.isArray(d.cards)||!Array.isArray(d.txns)) throw 0;
+    if(!confirm('Replace everything on this phone with this backup?')) return;
+    S=d; save(); render(); toast('Backup restored'); }).catch(()=>toast('That file is not a CardTrack backup'));
+});
+
+load(); render();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
