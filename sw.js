@@ -1,5 +1,5 @@
 // Offline cache. Bump VERSION when files change so phones pick up the update.
-const VERSION = 'cardtrack-v1';
+const VERSION = 'cardtrack-v2';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

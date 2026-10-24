@@ -318,7 +318,9 @@ function vMore(){
   <div class="list">
     <div class="item" id="mExport"><div class="grow"><div class="title">Export backup</div><div class="small muted">Saves a file you can keep in iCloud Drive or Files</div></div></div>
     <div class="item" id="mCsv"><div class="grow"><div class="title">Export expenses as CSV</div><div class="small muted">Opens in Excel or Numbers</div></div></div>
-    <label class="item" style="margin:0"><div class="grow"><div class="title">Restore from backup</div><div class="small muted">Replaces everything on this phone</div></div><input type="file" id="mImport" accept="application/json,.json" hidden></label>
+    <div class="item" id="mCopy"><div class="grow"><div class="title">Copy backup code</div><div class="small muted">Paste it into Notes or another phone</div></div></div>
+    <div class="item" id="mPaste"><div class="grow"><div class="title">Paste backup code</div><div class="small muted">Replaces everything on this phone</div></div></div>
+    <label class="item" style="margin:0"><div class="grow"><div class="title">Restore from backup file</div><div class="small muted">Replaces everything on this phone</div></div><input type="file" id="mImport" accept="application/json,.json" hidden></label>
   </div>
   <div class="hint">Your data stays only on this iPhone. Nothing is sent anywhere. Export a backup now and then so you don't lose it if Safari data is cleared.</div>
   <div class="list"><div class="item" id="mReset"><div class="grow title" style="color:var(--danger)">Erase all data</div></div></div>
@@ -523,6 +525,8 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#mIcsAll')) downloadIcs(S.cards,'card-due-dates.ics');
   if(e.target.closest('#mExport')) saveFile(JSON.stringify(S,null,1),`cardtrack-backup-${iso(today())}.json`,'application/json');
   if(e.target.closest('#mCsv')) exportCsv();
+  if(e.target.closest('#mCopy')) copyText(encodeBackup(S));
+  if(e.target.closest('#mPaste')) pasteForm();
   if(e.target.closest('#mReset') && confirm('Erase all cards, expenses and budgets on this phone?') && confirm('Are you sure? This cannot be undone.')){
     S={version:1,income:0,cards:[],budgets:[],txns:[]}; save(); render(); toast('Erased'); }
 });
@@ -534,7 +538,50 @@ document.addEventListener('change',e=>{
     S=d; save(); render(); toast('Backup restored'); }).catch(()=>toast('That file is not a CardTrack backup'));
 });
 
-load(); render();
+// Backup codes: base64url JSON, also accepted as a link ending in #d=<code>
+function encodeBackup(d){
+  const bytes=new TextEncoder().encode(JSON.stringify(d)); let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b));
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function decodeBackup(text){
+  text=String(text).trim();
+  if(text.startsWith('{')) return JSON.parse(text);
+  const code=text.includes('#d=') ? text.split('#d=')[1] : text;
+  const bin=atob(code.replace(/\s/g,'').replace(/-/g,'+').replace(/_/g,'/'));
+  const d=JSON.parse(new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0))));
+  if(!Array.isArray(d.cards)||!Array.isArray(d.txns)) throw 0;
+  return d;
+}
+function copyText(t){
+  (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Copied'))
+    .catch(()=>openSheet(`<h3>Backup code</h3><label class="field"><textarea rows="6" readonly>${esc(t)}</textarea></label><div class="hint">Select all and copy.</div><div class="actions"><button id="xClose">Close</button></div>`,r=>r.querySelector('#xClose').onclick=closeSheet));
+}
+function restore(d){ S=d; S.cards||=[]; S.budgets||=[]; S.txns||=[]; save(); render(); toast('Data loaded'); }
+function pasteForm(){
+  openSheet(`<h3>Paste backup code</h3>
+    <label class="field"><textarea id="pText" rows="6" placeholder="Paste the code or link here"></textarea></label>
+    <div class="actions"><button id="pCancel">Cancel</button><button class="btn-primary" id="pGo">Load data</button></div>`,
+  root=>{ root.querySelector('#pCancel').onclick=closeSheet;
+    root.querySelector('#pGo').onclick=()=>{ let d; try{ d=decodeBackup(root.querySelector('#pText').value); }catch(e){ toast('That code is not valid'); return; }
+      if((S.cards.length||S.txns.length) && !confirm('Replace everything on this phone?')) return;
+      closeSheet(); restore(d); }; });
+}
+function importFromLink(){
+  if(!location.hash.startsWith('#d=')) return;
+  const code=location.hash.slice(3); history.replaceState(null,'',location.pathname);
+  let d; try{ d=decodeBackup(code); }catch(e){ toast('That link is not valid'); return; }
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  openSheet(`<h3>Load your data</h3>
+    <div class="hint">${d.cards.length} cards, ${d.budgets.length} budget lines, ${d.txns.length} expenses.</div>
+    ${standalone?'':`<div class="hint">The Home Screen app keeps its own data. If you already added CardTrack to your Home Screen, tap <b>Copy code</b>, open CardTrack from the Home Screen, go to <b>More → Paste backup code</b>, and paste.</div>`}
+    <div class="actions">${standalone?'':'<button id="lCopy">Copy code</button>'}<button class="btn-primary" id="lLoad">Load here</button></div>
+    <div class="actions"><button id="lCancel">Cancel</button></div>`,
+  root=>{ root.querySelector('#lCancel').onclick=closeSheet;
+    root.querySelector('#lCopy')?.addEventListener('click',()=>copyText(code));
+    root.querySelector('#lLoad').onclick=()=>{ if((S.cards.length||S.txns.length) && !confirm('Replace everything on this phone?')) return; closeSheet(); restore(d); }; });
+}
+
+load(); render(); importFromLink();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
