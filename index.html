@@ -144,7 +144,7 @@ input[type=date]{min-height:44px}
 </nav>
 
 <button class="scan" id="scanBtn" aria-label="Scan a bill screenshot"><svg viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3.5"/></svg></button>
-<input type="file" id="scanFile" accept="image/*" hidden>
+<input type="file" id="scanFile" accept="image/*" multiple hidden>
 <div class="sheet-bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
 
@@ -944,22 +944,34 @@ async function ocrImage(file,onProgress){
   }
   onProgress(1); window.__lastText=merged.text; return merged;
 }
-async function scanFile(file){
-  const url=URL.createObjectURL(file);
-  let cancelled=false;
-  openSheet(`<h3>Reading your screenshot…</h3><img class="thumb" src="${url}" alt=""><div class="prog"><i id="scProg"></i></div><div class="hint">This happens on your phone. The first scan takes a little longer.</div><div class="actions"><button id="scCancel">Cancel</button></div>`,
-    r=>{ r.querySelector('#scCancel').onclick=()=>{ cancelled=true; closeSheet(); }; });
-  let pr;
-  try{ pr=await ocrImage(file,p=>{ const el=document.getElementById('scProg'); if(el) el.style.width=Math.round(p*100)+'%'; }); }
-  catch(e){ if(cancelled) return; scanReview(url,{amount:null,due:null,bill:null,text:''},'',true); return; }
+async function scanFiles(files){
+  const list=[...files]; const n=list.length; let cancelled=false; const res=[];
+  openSheet(`<h3 id="scTitle">Reading your screenshot${n>1?'s':''}…</h3><div id="scThumbs"></div><div class="prog"><i id="scProg"></i></div><div class="hint">This happens on your phone. The first scan takes a little longer.</div><div class="actions"><button id="scCancel">Cancel</button></div>`,
+    r=>{ r.querySelector('#scCancel').onclick=()=>{ cancelled=true; res.forEach(x=>URL.revokeObjectURL(x.url)); closeSheet(); }; });
+  for(let i=0;i<n;i++){
+    if(cancelled) return;
+    const url=URL.createObjectURL(list[i]); const t=document.getElementById('scTitle'); if(t&&n>1) t.textContent=`Reading screenshot ${i+1} of ${n}…`;
+    const th=document.getElementById('scThumbs'); if(th) th.innerHTML=`<img class="thumb" src="${url}" alt="">`;
+    let pr,failed=false;
+    try{ pr=await ocrImage(list[i],p=>{ const el=document.getElementById('scProg'); if(el) el.style.width=Math.round(((i+p)/n)*100)+'%'; }); }
+    catch(e){ if(cancelled) return; pr={amount:null,due:null,bill:null,text:''}; failed=true; }
+    res.push({url,pr,failed,target:failed?'':guessTarget(pr.text,pr.amount)});
+  }
   if(cancelled) return;
-  scanReview(url,pr,guessTarget(pr.text,pr.amount),false);
+  const step=i=>{
+    if(i>=res.length) return;
+    const x=res[i]; const q={i,n,last:i===res.length-1,next:()=>step(i+1)};
+    scanReview(x.url,x.pr,x.target,x.failed,q);
+  };
+  step(0);
 }
-function scanReview(url,pr,target,failed){
+const scanFile=f=>scanFiles([f]);
+function scanReview(url,pr,target,failed,q){
+  const multi=q&&q.n>1; const lastOne=!q||q.last;
   const opt=(v,l)=>`<option value="${v}" ${v===target?'selected':''}>${esc(l)}</option>`;
   const tb=target.startsWith('bill:')&&S.budgets.find(x=>x.id===target.slice(5)); const trk=!!(tb&&tb.tracker);
   const missing=trk?[!pr.amount&&'amount',!pr.due&&!pr.bill&&'date'].filter(Boolean):[!pr.amount&&'amount',!pr.due&&'due date',!pr.bill&&'bill date'].filter(Boolean);
-  openSheet(`<h3>Add from screenshot</h3><img class="thumb" src="${url}" alt="">
+  openSheet(`<h3>Add from screenshot${multi?` <span class="muted" style="font-weight:500">${q.i+1} of ${q.n}</span>`:''}</h3><img class="thumb" src="${url}" alt="">
     <div class="hint">${failed?'I could not read the screenshot. Fill in the details below.':missing.length?`I could not find the ${missing.join(' and ')}. Please fill ${missing.length>1?'them':'it'} in, then tap Add.`:'Check what I found, fix anything that is wrong, then tap Add.'}</div>
     <label class="field"><span>Add to</span><select id="scTarget"><option value="">Choose a bill or card…</option>
       <optgroup label="Bills">${S.budgets.map(b=>opt('bill:'+b.id,b.name)).join('')}</optgroup>
@@ -971,14 +983,14 @@ function scanReview(url,pr,target,failed){
     <label class="field"><span>Paid with</span><select id="scPay"><option value="">Cash / debit</option>${S.cards.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label></div></div>
     <div class="hint" id="scNote"></div>
     ${pr.text?`<details class="hint"><summary>Text I read from the screenshot</summary><pre style="white-space:pre-wrap;font-size:12px;max-height:160px;overflow:auto">${esc(pr.text)}</pre></details>`:''}
-    <div class="actions"><button id="scCancel">Cancel</button><button class="btn-primary" id="scAdd">Add</button></div>`,
+    <div class="actions"><button id="scCancel">${multi?(lastOne?'Skip':'Skip'):'Cancel'}</button><button class="btn-primary" id="scAdd">${multi&&!lastOne?'Add & next':'Add'}</button></div>`,
   r=>{
     const isTrack=v=>{ const b=v.startsWith('bill:')&&S.budgets.find(x=>x.id===v.slice(5)); return !!(b&&b.tracker); };
     const note=()=>{ const v=r.querySelector('#scTarget').value; const tr=isTrack(v); r.querySelector('#scDates').hidden=tr; r.querySelector('#scTrack').hidden=!tr;
       if(tr){ r.querySelector('#scNote').textContent='This adds an entry for the month, so you can see how much you spend each month.'; return; }
       r.querySelector('#scNote').textContent = v.startsWith('card:')?'For a card, this sets what you owe and its due and statement days.':v.startsWith('bill:')?'This updates the bill amount, bill date and due date.':''; };
     r.querySelector('#scTarget').onchange=note; note();
-    r.querySelector('#scCancel').onclick=()=>{ URL.revokeObjectURL(url); closeSheet(); };
+    r.querySelector('#scCancel').onclick=()=>{ URL.revokeObjectURL(url); if(multi&&!lastOne){ q.next(); } else closeSheet(); };
     r.querySelector('#scAdd').onclick=()=>{
       const v=r.querySelector('#scTarget').value; if(!v){ toast('Choose a bill or card'); return; }
       const amount=num(r.querySelector('#scAmt').value); if(amount<=0){ toast('Enter the amount'); return; }
@@ -997,7 +1009,9 @@ function scanReview(url,pr,target,failed){
         if(bill){ c.statementDate=bill; c.statementDay=parseISO(bill).getDate(); }
         tab='cards'; toast('Updated '+c.name); focusId='c:'+c.id;
       }
-      save(); URL.revokeObjectURL(url); closeSheet(); render(); window.scrollTo(0,0);
+      save(); URL.revokeObjectURL(url);
+      if(multi&&!lastOne){ toast('Added'); render(); q.next(); return; }
+      closeSheet(); render(); window.scrollTo(0,0);
       // jump to what was just updated
       setTimeout(()=>{ const el=document.querySelector(focusId.startsWith('b:')?`[data-budget="${focusId.slice(2)}"]`:`[data-card="${focusId.slice(2)}"]`);
         if(el){ el.scrollIntoView({block:'center',behavior:'smooth'}); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),2600); } },150);
@@ -1005,7 +1019,7 @@ function scanReview(url,pr,target,failed){
   });
 }
 $('#scanBtn').onclick=()=>$('#scanFile').click();
-$('#scanFile').onchange=e=>{ const f=e.target.files[0]; e.target.value=''; if(f) scanFile(f); };
+$('#scanFile').onchange=e=>{ const f=[...e.target.files]; e.target.value=''; if(f.length) scanFiles(f); };
 
 load(); render(); importFromLink();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
