@@ -329,14 +329,14 @@ function vHome(){
   </div>
   <h2 style="margin-top:6px">This month, by card</h2>
   <div class="slides">${S.cards.slice().sort((x,y)=>(nextDue(x)||9e15)-(nextDue(y)||9e15)).map(c=>{
-    const st=dueStatus(c), amt=+c.stmtAmount||+c.balance||0, paid=!!st.paid&&c.balance>0||c.balance<=0&&!c.stmtAmount;
+    const st=dueStatus(c), amt=+c.balance||0, paid=!!st.paid&&c.balance>0||c.balance<=0&&!c.stmtAmount;
     const n=st.due?daysBetween(today(),st.due):null;
     const daysTxt=n===null?'No due date':n===0?'Due today':n===1?'1 day left':n+' days left';
     const badge=c.balance<=0?'Nothing owed':st.paid?'Paid':'';
     return `<div class="slide" data-card="${c.id}" style="background:linear-gradient(135deg,rgba(255,255,255,.2),rgba(0,0,0,.22)),${c.color}">
       <div class="row"><b style="font-size:17px">${esc(c.name)}</b>${badge?`<span class="sbadge">${badge}</span>`:''}</div>
       <div class="samt num">${fmt(amt)}</div>
-      <div class="sline">${c.stmtAmount?'Statement amount':'Owed this month'}</div>
+      <div class="sline">Owed${c.stmtAmount?` · Statement ${fmt(c.stmtAmount)}`:''}</div>
       <div class="sfoot"><span class="sdays${!st.paid&&n!==null&&n<=3?' hot':''}">${daysTxt}</span><span class="sdue">${st.due?dfull(st.due):''}</span></div>
     </div>`;}).join('')||'<div class="list" style="margin:0"><div class="empty">Add a card to see it here.</div></div>'}</div>
   <h2>Upcoming card payments</h2>
