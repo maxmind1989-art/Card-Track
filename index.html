@@ -192,6 +192,10 @@ function load(){
     S.budgets.forEach(b=>{ if(b.cat==='Fuel'){ b.tracker=true; b.billDate=b.dueDate=null; b.billDay=b.dueDay=null; } });
     S.m5=1;
   }
+  if(!S.m7){ // repair Food / Fuel lines that an older cached version turned back into dated bills
+    S.budgets.forEach(b=>{ if((b.cat==='Food'||b.cat==='Fuel')&&!b.tracker){ b.tracker=true; b.billDate=b.dueDate=null; b.billDay=b.dueDay=null; } });
+    S.m7=1;
+  }
   save();
 }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){ toast('Could not save'); } }
