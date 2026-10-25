@@ -127,6 +127,13 @@ input[type=date]{min-height:44px}
 .kv{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line)}
 .kv:first-child{border-top:0}
 [hidden]{display:none!important}
+.donut{display:block;width:min(260px,72vw);margin:6px auto;color:var(--text)}
+.lg{border-top:1px solid var(--line)}.lg:first-of-type{border-top:0}
+.lg summary{display:flex;align-items:center;gap:10px;padding:11px 0;cursor:pointer;list-style:none}
+.lg summary::-webkit-details-marker{display:none}
+.lg summary i{width:14px;height:14px;border-radius:5px;flex:none}
+.lg .lgn{flex:1;min-width:0;font-weight:600}.lg .lgp{font-size:13px;font-weight:700;color:#6b7280;min-width:34px;text-align:right}.lg .lga{min-width:86px;text-align:right}
+.lg[open] summary{padding-bottom:4px}
 </style>
 </head>
 <body>
@@ -405,17 +412,32 @@ function monthSeg(){
     <div class="lbl">${MONTHS[viewMonth.getMonth()]} ${viewMonth.getFullYear()}</div>
     <button data-mon="1" aria-label="Next month">›</button></div>`;
 }
+const DONUT_COLS=['#e5354f','#f08a1c','#2f6fed','#16a56b','#12a4b8','#7c4dde','#d9467e','#8a94a6'];
 function vSpend(){
   const mk = monthKey(viewMonth);
   const list = S.txns.filter(t=>t.date.slice(0,7)===mk).sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts);
-  const spent = list.filter(t=>t.type==='expense').reduce((a,t)=>a+t.amount,0);
+  const exp = list.filter(t=>t.type==='expense');
+  const spent = exp.reduce((a,t)=>a+t.amount,0);
   const paid = list.filter(t=>t.type==='payment').reduce((a,t)=>a+t.amount,0);
+  const by={}; exp.forEach(t=>{ (by[t.cat||'Other']||={sum:0,items:[]}); by[t.cat||'Other'].sum+=t.amount; by[t.cat||'Other'].items.push(t); });
+  let rows=Object.entries(by).map(([cat,v])=>({cat,...v})).sort((a,b)=>b.sum-a.sum);
+  if(rows.length>8){ const rest=rows.slice(7); rows=rows.slice(0,7).concat([{cat:'Everything else',sum:rest.reduce((a,r)=>a+r.sum,0),items:rest.flatMap(r=>r.items)}]); }
+  rows.forEach((r,i)=>{ r.col=DONUT_COLS[i]; r.pct=spent?r.sum/spent*100:0; });
+  const R=70, C=2*Math.PI*R; let off=0, arcs='', lbls='';
+  rows.forEach(r=>{ const len=C*r.pct/100; const gap=rows.length>1?Math.min(2,len*.2):0;
+    arcs+=`<circle cx="100" cy="100" r="${R}" fill="none" stroke="${r.col}" stroke-width="34" stroke-dasharray="${Math.max(len-gap,0.5)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)"/>`;
+    if(r.pct>=6){ const ang=(off+len/2)/C*2*Math.PI-Math.PI/2; lbls+=`<text x="${100+R*Math.cos(ang)}" y="${100+R*Math.sin(ang)+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${Math.round(r.pct)}%</text>`; }
+    off+=len; });
+  const donut=spent?`<svg viewBox="0 0 200 200" class="donut" role="img" aria-label="Spending by category">${arcs}${lbls}
+      <text x="100" y="98" text-anchor="middle" font-size="${fmt(spent).length>11?15:17}" font-weight="800" fill="currentColor">${fmt(spent).replace('AED ','')}</text>
+      <text x="100" y="116" text-anchor="middle" font-size="11" fill="#6b7280">AED spent</text></svg>`
+    :`<div class="muted" style="text-align:center;padding:36px 0">No expenses in ${MONTHS[viewMonth.getMonth()]} yet.<br>Tap + or the scan button to add one.</div>`;
+  const legend=rows.map(r=>`<details class="lg"><summary><i style="background:${r.col}"></i><span class="lgn">${esc(r.cat)}<span class="muted small"> · ${r.items.length} ${r.items.length===1?'entry':'entries'}</span></span><span class="lgp">${r.pct<1?'<1':Math.round(r.pct)}%</span><b class="num lga">${fmt(r.sum)}</b></summary>
+      ${r.items.map(t=>`<div class="kv" data-txn="${t.id}" style="cursor:pointer"><span class="muted small">${t.date.slice(8)} ${MONTHS[+t.date.slice(5,7)-1]}${t.note?' · '+esc(t.note):''}</span><span class="num">${fmt(t.amount)}</span></div>`).join('')}</details>`).join('');
   return `${monthSeg()}
-  <div class="stats" style="margin-top:8px">
-    <div class="card"><div class="muted small">Expenses</div><div class="num" style="font-size:20px;font-weight:700">${fmt(spent)}</div></div>
-    <div class="card"><div class="muted small">Card payments</div><div class="num" style="font-size:20px;font-weight:700">${fmt(paid)}</div></div>
-  </div>
-  ${txnList(list)}`;
+  <div class="card" style="margin:8px 16px 0">${donut}</div>
+  ${rows.length?`<div class="card" style="margin:12px 16px 0"><div class="muted small" style="margin-bottom:4px">Where your money went · tap a category for its entries</div>${legend}</div>`:''}
+  <div class="card" style="margin:12px 16px 12px"><div class="kv" style="border-top:0"><span class="muted">Card payments this month</span><span class="num"><b>${fmt(paid)}</b></span></div></div>`;
 }
 
 function billCycle(b){
