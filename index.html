@@ -184,6 +184,10 @@ function load(){
     if(S.budgets.length && !S.budgets.some(b=>/home\s*internet/i.test(b.name))) S.budgets.push({id:uid(),name:'Home internet bill',amount:0,cat:'Home internet',day:null,billDate:null,dueDate:null,billDay:null,dueDay:null});
     S.m4=1;
   }
+  if(!S.m6){ // food is tracked by monthly entries too
+    S.budgets.forEach(b=>{ if(b.cat==='Food'){ b.tracker=true; b.billDate=b.dueDate=null; b.billDay=b.dueDay=null; } });
+    S.m6=1;
+  }
   if(!S.m5){ // fuel is tracked by monthly entries, not bill dates
     S.budgets.forEach(b=>{ if(b.cat==='Fuel'){ b.tracker=true; b.billDate=b.dueDate=null; b.billDay=b.dueDay=null; } });
     S.m5=1;
@@ -632,7 +636,7 @@ function entriesSlides(cat,mk=monthKey(viewMonth)){
   const list=S.txns.filter(t=>t.type==='expense'&&t.cat===cat&&t.date.slice(0,7)===mk).sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts);
   const total=list.reduce((a,t)=>a+t.amount,0);
   return `<div id="entBox"><div class="plan-h" style="margin:6px 16px 6px"><h2 style="margin:0">${MONTHS[md.getMonth()]} ${md.getFullYear()} entries</h2><span class="tot">${fmt(total)}</span></div>
-  ${list.length?`<div class="slides">${list.map(t=>{ const c=S.cards.find(x=>x.id===t.cardId); return `<div class="slide sm" data-ent="${t.id}" style="background:linear-gradient(135deg,rgba(255,255,255,.2),rgba(0,0,0,.2)),#e8662a">
+  ${list.length?`<div class="slides">${list.map(t=>{ const c=S.cards.find(x=>x.id===t.cardId); return `<div class="slide sm" data-ent="${t.id}" style="background:linear-gradient(135deg,rgba(255,255,255,.2),rgba(0,0,0,.2)),${(CAT_ICON[cat]||[0,'#e8662a'])[1]}">
     <div class="sdue" style="font-size:14px;font-weight:700">${dfull(parseISO(t.date))}</div>
     <div class="samt num" style="font-size:24px;margin-top:6px">${fmt(t.amount)}</div>
     <div class="sline">${esc(c?c.name:'Cash / debit')}</div></div>`; }).join('')}</div>`:'<div class="hint">No entries this month yet. Scan a receipt to add one.</div>'}</div>`;
@@ -863,7 +867,7 @@ function parseBill(text){
 }
 // Guess which bill or card the screenshot belongs to
 const BANK_ALIASES=[[/emirates\s*nbd|\benbd\b/i,'enbd'],[/emirates\s*islamic/i,'emirates islamic'],[/first\s*abu\s*dhabi|\bfab\b/i,'fab'],[/dubai\s*islamic|\bdib\b/i,'dib'],[/rak\s*bank|rakbank/i,'rak'],[/adnoc/i,'adnoc'],[/\bdu\b/i,'du']];
-const BILL_HINTS={Electricity:/dewa|electric|sewa|addc|aadc|fewa/i,Water:/\bwater\b/i,Gas:/\bgas\b|sarooj|lpg/i,Phone:/etisalat|\be&|\bdu\b|telecom|mobile|postpaid/i,Internet:/mobile\s*data|data\s*plan/i,Fuel:/fuel|petrol|diesel|litre|liter|special\s*95|unleaded|super\s*98|enoc|eppco|emarat|adnoc\s*distribution/i,'Home internet':/home\s*internet|internet|wifi|broadband|wireless|fibre|fiber/i};
+const BILL_HINTS={Electricity:/dewa|electric|sewa|addc|aadc|fewa/i,Water:/\bwater\b/i,Gas:/\bgas\b|sarooj|lpg/i,Phone:/etisalat|\be&|\bdu\b|telecom|mobile|postpaid/i,Internet:/mobile\s*data|data\s*plan/i,Food:/restaurant|caf[eé]|coffee|grocer|supermarket|hypermarket|carrefour|lulu|spinneys|waitrose|choithram|union\s*coop|talabat|deliveroo|careem\s*food|zomato|kfc|mcdonald|burger|pizza|bakery|shawarma|dining|\btable\b|guest|\bdine\b|food|order\s*(no|number)/i,Fuel:/fuel|petrol|diesel|litre|liter|special\s*95|unleaded|super\s*98|enoc|eppco|emarat|adnoc\s*distribution/i,'Home internet':/home\s*internet|internet|wifi|broadband|wireless|fibre|fiber/i};
 function guessTarget(text,amount){
   const t=text.toLowerCase(); const scores=[];
   const isCardDoc=/credit\s*card|minimum\s*(payment|amount)|card\s*(no|number)|statement\s*of\s*account|total\s*amount\s*due/i.test(text);
@@ -873,7 +877,7 @@ function guessTarget(text,amount){
     if(amount&&Math.abs((+c.balance||0)-amount)<0.5) sc+=2; // the statement usually matches what you already owe
     if(isCardDoc&&sc) sc+=2; if(sc) scores.push(['card:'+c.id,sc]); });
   S.budgets.forEach(b=>{ let sc=0; const re=BILL_HINTS[b.cat]; if(re&&re.test(text)) sc+=3; if(/dewa/i.test(text)&&b.cat==='Water') sc-=1;
-    if(b.cat==='Fuel'&&re&&re.test(text)) sc+=5;
+    if((b.cat==='Fuel'||b.cat==='Food')&&re&&re.test(text)) sc+=5;
     b.name.toLowerCase().split(/\s+/).forEach(w=>{ if(w.length>=4&&!['bill'].includes(w)&&t.includes(w)) sc+=1; });
     if(amount&&b.amount&&Math.abs((+b.amount||0)-amount)<0.5) sc+=2;
     if(!isCardDoc&&sc) sc+=1; if(sc>0) scores.push(['bill:'+b.id,sc]); });
