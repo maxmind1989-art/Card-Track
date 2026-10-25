@@ -109,6 +109,7 @@ nav button.on{color:#1c6fe0}
 .sheet h3{margin:0 16px 12px;font-size:20px}
 .field{display:block;margin:0 16px 12px}
 .field span{display:block;font-size:13px;color:var(--muted);margin-bottom:4px;font-weight:600}
+input[type=checkbox]{appearance:auto;-webkit-appearance:checkbox;width:22px;height:22px;padding:0;flex:none;accent-color:#1c6fe0}
 input,select,textarea{font:inherit;font-size:16px;width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);appearance:none;-webkit-appearance:none}
 input[type=date]{min-height:44px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0}
@@ -180,6 +181,10 @@ function load(){
   if(!S.m4){ // separate home internet bill
     if(S.budgets.length && !S.budgets.some(b=>/home\s*internet/i.test(b.name))) S.budgets.push({id:uid(),name:'Home internet bill',amount:0,cat:'Home internet',day:null,billDate:null,dueDate:null,billDay:null,dueDay:null});
     S.m4=1;
+  }
+  if(!S.m5){ // fuel is tracked by monthly entries, not bill dates
+    S.budgets.forEach(b=>{ if(b.cat==='Fuel'){ b.tracker=true; b.billDate=b.dueDate=null; b.billDay=b.dueDay=null; } });
+    S.m5=1;
   }
   save();
 }
@@ -433,7 +438,8 @@ function vBudget(){
     const s = byCat[b.cat]||0; const pct = b.amount? s/b.amount*100 : (s?100:0);
     const bits=[b.cat];
     if(b.day) bits.push('on the '+ord(b.day));
-    const cy=billCycle(b);
+    const cy=b.tracker?null:billCycle(b);
+    if(b.tracker){ const k=tx.filter(t=>t.cat===b.cat).length; bits.push(k?`${k} ${k===1?'entry':'entries'} in ${MONTHS[viewMonth.getMonth()]}`:'Tap to see monthly history'); }
     if(cy){ if(cy.bill) bits.push('Bill date '+dfull(cy.bill)); const n=daysBetween(today(),cy.due); bits.push('Due '+dfull(cy.due)+(n<=7?` (${n===0?'today':n===1?'tomorrow':'in '+n+' days'})`:'')); }
     return `<div class="bitem" data-budget="${b.id}">${catIc(b.cat)}
       <div class="grow"><div style="display:flex;justify-content:space-between;gap:8px"><div style="min-width:0"><div class="title" style="font-weight:700;font-size:17px">${esc(b.name)}</div><div class="small muted" style="white-space:normal">${esc(bits.join(' · '))}</div></div>
@@ -578,6 +584,7 @@ function cardForm(card){
         statementDate:root.querySelector('#kStmt').value||null,dueDate:root.querySelector('#kDue').value||null,
         payMode:root.querySelector('#kMode').value,installment:num(root.querySelector('#kInst').value),instEnds:root.querySelector('#kEnds').value.trim(),
         color,notes:root.querySelector('#kNotes').value.trim()};
+      if(data.tracker){ data.billDate=data.dueDate=null; }
       data.dueDay=data.dueDate?parseISO(data.dueDate).getDate():card.dueDay||null; data.statementDay=data.statementDate?parseISO(data.statementDate).getDate():card.statementDay||null;
       if(isNew) S.cards.push({id:uid(),instPaid:0,...data}); else Object.assign(card,data);
       save(); closeSheet(); render(); toast('Card saved');
@@ -591,17 +598,21 @@ function budgetForm(b){
     <label class="field"><span>Name</span><input id="bName" value="${esc(b.name)}" placeholder="e.g. DEWA electricity bill"></label>
     <div class="grid2"><label class="field"><span>Amount per month</span><input id="bAmt" inputmode="decimal" value="${b.amount||''}" placeholder="0"></label>
     <label class="field"><span>Category</span><select id="bCat">${CATS.map(c=>`<option ${c===b.cat?'selected':''}>${esc(c)}</option>`).join('')}</select></label></div>
-    <div class="grid2"><label class="field"><span>Bill date</span><input type="date" id="bBill" value="${b.billDate||''}"></label>
+    <label class="field" style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="bTrack" style="width:auto" ${b.tracker?'checked':''}><span style="margin:0">Spending tracker (no bill dates, e.g. fuel)</span></label>
+    <div class="grid2" id="bDates"><label class="field"><span>Bill date</span><input type="date" id="bBill" value="${b.billDate||''}"></label>
     <label class="field"><span>Due date</span><input type="date" id="bDue" value="${b.dueDate||''}"></label></div>
+    ${b.tracker&&!isNew?histHtml(b.cat):''}
     <label class="field"><span>Paid on day (optional)</span><input id="bDay" inputmode="numeric" value="${b.day||''}" placeholder="e.g. 1 for rent"></label>
-    <div class="hint">The due date repeats every month and is added to your Calendar reminders under More.</div>
+    <div class="hint" id="bHint">The due date repeats every month and is added to your Calendar reminders under More.</div>
     <div class="actions">${isNew?'':'<button class="btn-danger" id="bDel">Delete</button>'}<button id="bCancel">Cancel</button><button class="btn-primary" id="bSave">Save</button></div>`,
   root=>{
+    const tg=()=>{ const on=root.querySelector('#bTrack').checked; root.querySelector('#bDates').style.display=on?'none':''; root.querySelector('#bHint').style.display=on?'none':''; }; root.querySelector('#bTrack').onchange=tg; tg();
+    root.querySelectorAll('[data-hist]').forEach(el=>el.onclick=()=>{ viewMonth=parseISO(el.dataset.hist); closeSheet(); tab='spend'; render(); window.scrollTo(0,0); });
     root.querySelector('#bCancel').onclick=closeSheet;
     if(!isNew) root.querySelector('#bDel').onclick=()=>{ S.budgets=S.budgets.filter(x=>x.id!==b.id); save(); closeSheet(); render(); };
     root.querySelector('#bSave').onclick=()=>{
       const name=root.querySelector('#bName').value.trim(); if(!name){toast('Enter a name');return;}
-      const data={name,amount:num(root.querySelector('#bAmt').value),day:dayOrNull(root.querySelector('#bDay').value),billDate:root.querySelector('#bBill').value||null,dueDate:root.querySelector('#bDue').value||null,cat:root.querySelector('#bCat').value};
+      const data={name,amount:num(root.querySelector('#bAmt').value),day:dayOrNull(root.querySelector('#bDay').value),tracker:root.querySelector('#bTrack').checked,billDate:root.querySelector('#bBill').value||null,dueDate:root.querySelector('#bDue').value||null,cat:root.querySelector('#bCat').value};
       data.dueDay=data.dueDate?parseISO(data.dueDate).getDate():null; data.billDay=data.billDate?parseISO(data.billDate).getDate():null;
       if(isNew) S.budgets.push({id:uid(),...data}); else Object.assign(b,data);
       save(); closeSheet(); render(); toast('Saved');
@@ -609,6 +620,12 @@ function budgetForm(b){
   });
 }
 
+// spending per month for one category, newest first
+function histHtml(cat){
+  const by={}; S.txns.filter(t=>t.type==='expense'&&t.cat===cat).forEach(t=>{ const k=t.date.slice(0,7); (by[k]||={sum:0,n:0}); by[k].sum+=t.amount; by[k].n++; });
+  const keys=Object.keys(by).sort().reverse();
+  return `<div class="card" style="margin:4px 16px 12px"><div class="muted small" style="margin-bottom:6px">Spent on ${esc(cat)} by month</div>${keys.length?keys.map(k=>`<div class="kv" data-hist="${k}-01" style="cursor:pointer"><span>${MONTHS[+k.slice(5)-1]} ${k.slice(0,4)} <span class="muted small">· ${by[k].n} ${by[k].n===1?'entry':'entries'}</span></span><span class="num"><b>${fmt(by[k].sum)}</b></span></div>`).join(''):'<div class="muted small">No entries yet. Scan a receipt to add one.</div>'}</div>`;
+}
 function monthPicker(){
   const now=new Date(); const opts=[];
   for(let i=-11;i<=2;i++) opts.push(new Date(now.getFullYear(),now.getMonth()+i,1));
@@ -784,7 +801,7 @@ const AMT_RE=/\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?/g;
 // fix common reading slips inside numbers: O for 0, l or I for 1
 const fixDigits=t=>t.replace(/[\dOoIl][\dOoIl,.]*[\dOoIl]|[\dOoIl]/g,x=>/\d/.test(x)?x.replace(/[Oo]/g,'0').replace(/[Il]/g,'1'):x);
 function amountsIn(text){ return (fixDigits(stripDates(text)).match(AMT_RE)||[]).map(x=>parseFloat(x.replace(/,/g,''))).filter(v=>v>0); }
-const AMT_KEYS=[/total\s*amount\s*due/i,/total\s*due/i,/amount\s*due/i,/due\s*amount/i,/amount\s*to\s*pay/i,/(total\s*)?(amount\s*)?payable/i,/balance\s*due/i,/total\s*outstanding|outstanding(\s*balance)?/i,/statement\s*balance|total\s*balance|closing\s*balance/i,/(total\s*)?bill\s*amount|total\s*bill|invoice\s*(total|amount)/i,/new\s*charges|current\s*charges|total\s*charges|grand\s*total/i,/\btotal\b/i];
+const AMT_KEYS=[/total\s*amount\s*due/i,/total\s*due/i,/amount\s*due/i,/due\s*amount/i,/amount\s*to\s*pay/i,/(total\s*)?(amount\s*)?payable/i,/balance\s*due/i,/total\s*outstanding|outstanding(\s*balance)?/i,/statement\s*balance|total\s*balance|closing\s*balance/i,/(total\s*)?bill\s*amount|total\s*bill|invoice\s*(total|amount)/i,/new\s*charges|current\s*charges|total\s*charges|grand\s*total/i,/\btotal\b/i,/\bamount\b/i];
 const AMT_SKIP=/minimum|\bmin\b|previous|last\s*payment|credit\s*limit|available|reward|points|vat\b|\btax\b|late\s*fee|cash\s*advance/i;
 function parseBill(text){
   text=toAscii(text);
@@ -824,7 +841,7 @@ function parseBill(text){
 }
 // Guess which bill or card the screenshot belongs to
 const BANK_ALIASES=[[/emirates\s*nbd|\benbd\b/i,'enbd'],[/emirates\s*islamic/i,'emirates islamic'],[/first\s*abu\s*dhabi|\bfab\b/i,'fab'],[/dubai\s*islamic|\bdib\b/i,'dib'],[/rak\s*bank|rakbank/i,'rak'],[/adnoc/i,'adnoc'],[/\bdu\b/i,'du']];
-const BILL_HINTS={Electricity:/dewa|electric|sewa|addc|aadc|fewa/i,Water:/\bwater\b/i,Gas:/\bgas\b|sarooj|lpg/i,Phone:/etisalat|\be&|\bdu\b|telecom|mobile|postpaid/i,Internet:/mobile\s*data|data\s*plan/i,'Home internet':/home\s*internet|internet|wifi|broadband|wireless|fibre|fiber/i};
+const BILL_HINTS={Electricity:/dewa|electric|sewa|addc|aadc|fewa/i,Water:/\bwater\b/i,Gas:/\bgas\b|sarooj|lpg/i,Phone:/etisalat|\be&|\bdu\b|telecom|mobile|postpaid/i,Internet:/mobile\s*data|data\s*plan/i,Fuel:/fuel|petrol|diesel|litre|liter|special\s*95|unleaded|super\s*98|enoc|eppco|emarat|adnoc\s*distribution/i,'Home internet':/home\s*internet|internet|wifi|broadband|wireless|fibre|fiber/i};
 function guessTarget(text,amount){
   const t=text.toLowerCase(); const scores=[];
   const isCardDoc=/credit\s*card|minimum\s*(payment|amount)|card\s*(no|number)|statement\s*of\s*account|total\s*amount\s*due/i.test(text);
@@ -834,6 +851,7 @@ function guessTarget(text,amount){
     if(amount&&Math.abs((+c.balance||0)-amount)<0.5) sc+=2; // the statement usually matches what you already owe
     if(isCardDoc&&sc) sc+=2; if(sc) scores.push(['card:'+c.id,sc]); });
   S.budgets.forEach(b=>{ let sc=0; const re=BILL_HINTS[b.cat]; if(re&&re.test(text)) sc+=3; if(/dewa/i.test(text)&&b.cat==='Water') sc-=1;
+    if(b.cat==='Fuel'&&re&&re.test(text)) sc+=5;
     b.name.toLowerCase().split(/\s+/).forEach(w=>{ if(w.length>=4&&!['bill'].includes(w)&&t.includes(w)) sc+=1; });
     if(amount&&b.amount&&Math.abs((+b.amount||0)-amount)<0.5) sc+=2;
     if(!isCardDoc&&sc) sc+=1; if(sc>0) scores.push(['bill:'+b.id,sc]); });
@@ -913,20 +931,26 @@ async function scanFile(file){
 }
 function scanReview(url,pr,target,failed){
   const opt=(v,l)=>`<option value="${v}" ${v===target?'selected':''}>${esc(l)}</option>`;
-  const missing=[!pr.amount&&'amount',!pr.due&&'due date',!pr.bill&&'bill date'].filter(Boolean);
+  const tb=target.startsWith('bill:')&&S.budgets.find(x=>x.id===target.slice(5)); const trk=!!(tb&&tb.tracker);
+  const missing=trk?[!pr.amount&&'amount',!pr.due&&!pr.bill&&'date'].filter(Boolean):[!pr.amount&&'amount',!pr.due&&'due date',!pr.bill&&'bill date'].filter(Boolean);
   openSheet(`<h3>Add from screenshot</h3><img class="thumb" src="${url}" alt="">
     <div class="hint">${failed?'I could not read the screenshot. Fill in the details below.':missing.length?`I could not find the ${missing.join(' and ')}. Please fill ${missing.length>1?'them':'it'} in, then tap Add.`:'Check what I found, fix anything that is wrong, then tap Add.'}</div>
     <label class="field"><span>Add to</span><select id="scTarget"><option value="">Choose a bill or card…</option>
       <optgroup label="Bills">${S.budgets.map(b=>opt('bill:'+b.id,b.name)).join('')}</optgroup>
       <optgroup label="Cards">${S.cards.map(c=>opt('card:'+c.id,c.name)).join('')}</optgroup></select></label>
     <label class="field"><span>Amount (AED)</span><input id="scAmt" inputmode="decimal" value="${pr.amount??''}" style="font-weight:700"></label>
-    <div class="grid2"><label class="field"><span>Bill date</span><input type="date" id="scBill" value="${pr.bill?iso(pr.bill):''}"></label>
+    <div class="grid2" id="scDates"><label class="field"><span>Bill date</span><input type="date" id="scBill" value="${pr.bill?iso(pr.bill):''}"></label>
     <label class="field"><span>Due date</span><input type="date" id="scDue" value="${pr.due?iso(pr.due):''}"></label></div>
+    <div id="scTrack" hidden><div class="grid2"><label class="field"><span>Date</span><input type="date" id="scTDate" value="${iso(pr.due||pr.bill||today())}"></label>
+    <label class="field"><span>Paid with</span><select id="scPay"><option value="">Cash / debit</option>${S.cards.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label></div></div>
     <div class="hint" id="scNote"></div>
     ${pr.text?`<details class="hint"><summary>Text I read from the screenshot</summary><pre style="white-space:pre-wrap;font-size:12px;max-height:160px;overflow:auto">${esc(pr.text)}</pre></details>`:''}
     <div class="actions"><button id="scCancel">Cancel</button><button class="btn-primary" id="scAdd">Add</button></div>`,
   r=>{
-    const note=()=>{ const v=r.querySelector('#scTarget').value; r.querySelector('#scNote').textContent = v.startsWith('card:')?'For a card, this sets what you owe and its due and statement days.':v.startsWith('bill:')?'This updates the bill amount, bill date and due date.':''; };
+    const isTrack=v=>{ const b=v.startsWith('bill:')&&S.budgets.find(x=>x.id===v.slice(5)); return !!(b&&b.tracker); };
+    const note=()=>{ const v=r.querySelector('#scTarget').value; const tr=isTrack(v); r.querySelector('#scDates').hidden=tr; r.querySelector('#scTrack').hidden=!tr;
+      if(tr){ r.querySelector('#scNote').textContent='This adds an entry for the month, so you can see how much you spend each month.'; return; }
+      r.querySelector('#scNote').textContent = v.startsWith('card:')?'For a card, this sets what you owe and its due and statement days.':v.startsWith('bill:')?'This updates the bill amount, bill date and due date.':''; };
     r.querySelector('#scTarget').onchange=note; note();
     r.querySelector('#scCancel').onclick=()=>{ URL.revokeObjectURL(url); closeSheet(); };
     r.querySelector('#scAdd').onclick=()=>{
@@ -934,7 +958,10 @@ function scanReview(url,pr,target,failed){
       const amount=num(r.querySelector('#scAmt').value); if(amount<=0){ toast('Enter the amount'); return; }
       const bill=r.querySelector('#scBill').value||null, due=r.querySelector('#scDue').value||null;
       const [kind,id]=v.split(':'); let focusId='';
-      if(kind==='bill'){ const b=S.budgets.find(x=>x.id===id); if(!b) return;
+      if(kind==='bill'&&isTrack(v)){ const b=S.budgets.find(x=>x.id===id); const date=r.querySelector('#scTDate').value||iso(today()); const cardId=r.querySelector('#scPay').value||null;
+        const t={id:uid(),ts:Date.now(),type:'expense',amount,cat:b.cat,cardId,date,note:b.name+' (scanned)'}; applyTxn(t,1); S.txns.push(t);
+        viewMonth=parseISO(date.slice(0,8)+'01'); tab='budget'; toast(`Added ${fmt(amount)} to ${b.name} for ${MONTHS[parseISO(date).getMonth()]}`); focusId='b:'+b.id;
+      } else if(kind==='bill'){ const b=S.budgets.find(x=>x.id===id); if(!b) return;
         b.amount=amount; if(bill) b.billDate=bill; if(due) b.dueDate=due;
         b.dueDay=b.dueDate?parseISO(b.dueDate).getDate():null; b.billDay=b.billDate?parseISO(b.billDate).getDate():null;
         tab='budget'; toast('Added to '+b.name); focusId='b:'+b.id;
