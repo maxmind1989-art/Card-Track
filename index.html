@@ -73,6 +73,16 @@ main{max-width:640px;margin:0 auto}
 .scan svg{width:26px;height:26px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .prog{height:8px;border-radius:4px;background:var(--surface2);margin:0 16px 12px;overflow:hidden}.prog i{display:block;height:100%;width:0;background:var(--grad);transition:width .2s}
 .thumb{display:block;max-height:140px;max-width:calc(100% - 32px);margin:0 16px 12px;border-radius:12px;box-shadow:var(--shadow)}
+.slides{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 16px;padding:4px 16px 14px;margin:0;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.slides::-webkit-scrollbar{display:none}
+.slide{flex:0 0 74%;max-width:290px;scroll-snap-align:start;border-radius:22px;padding:16px;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.18);cursor:pointer;display:flex;flex-direction:column;gap:2px;min-height:170px}
+.slide .row{align-items:flex-start}
+.sbadge{background:rgba(255,255,255,.25);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap}
+.samt{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-top:10px}
+.sline{font-size:13px;opacity:.85}
+.sfoot{margin-top:auto;padding-top:12px;border-top:1px solid rgba(255,255,255,.3);display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sdays{font-size:20px;font-weight:800}.sdays.hot{background:rgba(255,255,255,.95);color:#c0362c;border-radius:999px;padding:2px 12px;font-size:17px}
+.sdue{font-size:13px;opacity:.9;white-space:nowrap}
 .hero{background:var(--grad);color:#fff;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 6px 20px rgba(28,111,224,.3)}
 .hero .muted{color:rgba(255,255,255,.85)}
 .hero .bar{background:rgba(255,255,255,.28)}
@@ -295,14 +305,18 @@ function vHome(){
     ${limit?`<div class="bar ${util>70?'danger':util>40?'warn':''}"><i style="width:${Math.min(util,100)}%"></i></div>
     <div class="row small muted" style="margin-top:6px"><span>${util.toFixed(0)}% of ${fmt(limit)} limits used</span><span>${S.cards.length} cards</span></div>`:''}
   </div>
-  <div class="stats">
-    <div class="card"><div class="muted small">Spent in ${MONTHS[new Date().getMonth()]}</div><div class="num" style="font-size:20px;font-weight:700">${fmt(spent)}</div>
-      <div class="small muted">Budget ${fmt(budget)}</div>
-      <div class="bar ${spent>budget?'danger':''}"><i style="width:${budget?Math.min(spent/budget*100,100):0}%"></i></div></div>
-    <div class="card"><div class="muted small">Left this month</div><div class="num" style="font-size:20px;font-weight:700;color:${left<0?'var(--danger)':'inherit'}">${fmt(left)}</div>
-      <div class="small muted">Income ${fmt(totalIncome())}</div>
-      <div class="small muted">Card payments ${fmt(cardPays)}</div></div>
-  </div>
+  <h2 style="margin-top:6px">This month, by card</h2>
+  <div class="slides">${S.cards.slice().sort((x,y)=>(nextDue(x)||9e15)-(nextDue(y)||9e15)).map(c=>{
+    const st=dueStatus(c), amt=+c.stmtAmount||+c.balance||0, paid=!!st.paid&&c.balance>0||c.balance<=0&&!c.stmtAmount;
+    const n=st.due?daysBetween(today(),st.due):null;
+    const daysTxt=n===null?'No due date':n===0?'Due today':n===1?'1 day left':n+' days left';
+    const badge=c.balance<=0?'Nothing owed':st.paid?'Paid':'';
+    return `<div class="slide" data-card="${c.id}" style="background:linear-gradient(135deg,rgba(255,255,255,.2),rgba(0,0,0,.22)),${c.color}">
+      <div class="row"><b style="font-size:17px">${esc(c.name)}</b>${badge?`<span class="sbadge">${badge}</span>`:''}</div>
+      <div class="samt num">${fmt(amt)}</div>
+      <div class="sline">${c.stmtAmount?'Statement amount':'Owed this month'}</div>
+      <div class="sfoot"><span class="sdays${!st.paid&&n!==null&&n<=3?' hot':''}">${daysTxt}</span><span class="sdue">${st.due?dfull(st.due):''}</span></div>
+    </div>`;}).join('')||'<div class="list" style="margin:0"><div class="empty">Add a card to see it here.</div></div>'}</div>
   <h2>Upcoming card payments</h2>
   ${upcoming.length?`<div class="list">${upcoming.map(({c,st})=>`
     <div class="item" data-card="${c.id}">
