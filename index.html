@@ -617,17 +617,18 @@ function budgetForm(b){
     const showMonth=k=>{ selKey=k; root.querySelector('#entBox').outerHTML=entriesSlides(b.cat,k); root.querySelectorAll('.hrow').forEach(r=>r.classList.toggle('sel',r.dataset.hist===k)); bindEnts(); };
     // tap an entry to edit it, press and hold to delete it
     const bindEnts=()=>{ root.querySelectorAll('[data-ent]').forEach(el=>{
-      let timer=null,held=false,x0=0,y0=0;
+      let timer=null,held=false,x0=0,y0=0,downAt=0;
       const stop=()=>{ clearTimeout(timer); timer=null; };
       el.style.webkitTouchCallout='none'; el.style.userSelect='none'; el.style.webkitUserSelect='none';
       el.oncontextmenu=e=>e.preventDefault();
-      el.onpointerdown=e=>{ held=false; x0=e.clientX; y0=e.clientY; stop(); timer=setTimeout(()=>{ held=true; if(navigator.vibrate) navigator.vibrate(30);
+      el.onpointerdown=e=>{ held=false; downAt=Date.now(); x0=e.clientX; y0=e.clientY; stop(); timer=setTimeout(()=>{ held=true; if(navigator.vibrate) navigator.vibrate(30);
         const t=S.txns.find(x=>x.id===el.dataset.ent); if(!t) return;
-        if(confirm(`Delete this entry?\n${fmt(t.amount)} on ${t.date}`)){ applyTxn(t,-1); S.txns=S.txns.filter(x=>x.id!==t.id); save(); render(); toast('Deleted');
+        const ok=confirm(`Delete this entry?\n${fmt(t.amount)} on ${t.date}`); window.__noTap=Date.now()+900;
+        if(ok){ applyTxn(t,-1); S.txns=S.txns.filter(x=>x.id!==t.id); save(); render(); toast('Deleted');
           showMonth(selKey); const h=root.querySelector('#histBox'); if(h){ h.outerHTML=histHtml(b.cat,selKey); bindHist(); } } },550); };
       el.onpointermove=e=>{ if(Math.abs(e.clientX-x0)>8||Math.abs(e.clientY-y0)>8) stop(); };
       el.onpointerup=el.onpointercancel=el.onpointerleave=stop;
-      el.onclick=()=>{ if(held){ held=false; return; } const t=S.txns.find(x=>x.id===el.dataset.ent); if(t) expenseForm(t); }; }); };
+      el.onclick=()=>{ if(held||Date.now()<(window.__noTap||0)||Date.now()-downAt>450){ held=false; return; } const t=S.txns.find(x=>x.id===el.dataset.ent); if(t) expenseForm(t); }; }); };
     const bindHist=()=>root.querySelectorAll('[data-hist]').forEach(el=>el.onclick=()=>{ showMonth(el.dataset.hist);
       root.querySelector('#entBox').scrollIntoView({block:'nearest',behavior:'smooth'}); });
     bindHist(); bindEnts();
